@@ -33,13 +33,13 @@ Design powerful and reliable compilers using the latest libraries and tools from
 #### 内容纲要
 
 - 了解LLVM的构建系统是如何工作的，以及如何减少构建资源
-- 掌握使用LLVM的LIT框架运行定制测试的方法
+- 掌握使用LLVM的LIT框架运行自定义测试的方法
 - 为Clang构建不同类型的插件和扩展
-- 自定义Clang的工具链和编译器标志
+- 基于Clang自定义工具链和编译器标志
 - 为PassManager写LLVM Pass
 - 了解如何检查和修改LLVM IR
 - 了解如何使用LLVM的配置文件引导优化(PGO)框架
-- 创建自定义编译器消毒器
+- 创建自定义(编译器)消毒器
 
 
 
