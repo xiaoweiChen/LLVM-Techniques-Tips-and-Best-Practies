@@ -54,8 +54,8 @@ Design powerful and reliable compilers using the latest libraries and tools from
 **Min-Yih "Min" Hsu**是加州大学欧文分校计算机科学博士研究生。他的研究集中在编译器工程、代码优化、高级硬件架构和系统安全。2015年起，他一直是LLVM社区的活跃成员，并贡献了许多补丁。他还致力于通过各种途径倡导LLVM和编译器工程，比如写博客和发表演讲。在业余时间，他喜欢了解各种不同的咖啡豆和煮咖啡的方法。
 
 > 我要感谢所有支持过我的人，特别是家人和导师。还要感谢LLVM社区不论出身的包容和善待每一位成员。
-
-<p align="right"> —Min-Yih Hsu</p>
+>
+> <p align="right"> —Min-Yih Hsu</p>
 
 ## 审评者介绍
 
