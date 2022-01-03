@@ -1,5 +1,5 @@
 
-\documentclass[11pt,a4paper,UTF8]{ctexart}
+\documentclass[11pt,a4paper,UTF8]{book}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
@@ -26,22 +26,6 @@
 
 \usepackage{geometry} %设置页边距的包
 \geometry{left=2.5cm,right=2cm,top=2.54cm,bottom=2.54cm} %设置书籍的页边距
-
-% URL 正确换行
-% https://liam.page/2017/05/17/help-the-url-command-from-hyperref-to-break-at-line-wrapping-point/
-\makeatletter
-\def\UrlAlphabet{%
-	\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j%
-	\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t%
-	\do\u\do\v\do\w\do\x\do\y\do\z\do\A\do\B\do\C\do\D%
-	\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M\do\N%
-	\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X%
-	\do\Y\do\Z}
-\def\UrlDigits{\do\1\do\2\do\3\do\4\do\5\do\6\do\7\do\8\do\9\do\0}
-\g@addto@macro{\UrlBreaks}{\UrlOrds}
-\g@addto@macro{\UrlBreaks}{\UrlAlphabet}
-\g@addto@macro{\UrlBreaks}{\UrlDigits}
-\makeatother
 
 \usepackage{url}
 \hypersetup{hidelinks, %去红框
@@ -280,10 +264,62 @@
 
 \usepackage{tikz}
 
+% URL 正确换行
+% https://liam.page/2017/05/17/help-the-url-command-from-hyperref-to-break-at-line-wrapping-point/
+\makeatletter
+\def\UrlAlphabet{%
+	\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j%
+	\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t%
+	\do\u\do\v\do\w\do\x\do\y\do\z\do\A\do\B\do\C\do\D%
+	\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M\do\N%
+	\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X%
+	\do\Y\do\Z}
+\def\UrlDigits{\do\1\do\2\do\3\do\4\do\5\do\6\do\7\do\8\do\9\do\0}
+\g@addto@macro{\UrlBreaks}{\UrlOrds}
+\g@addto@macro{\UrlBreaks}{\UrlAlphabet}
+\g@addto@macro{\UrlBreaks}{\UrlDigits}
+\makeatother
+
+% enable subsubsubsection
+% from https://tex.stackexchange.com/questions/274212/correct-hierarchy-levels-of-pdf-bookmarks-for-custom-section-subsubsubsection
+\usepackage[depth=3]{bookmark}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{4}
+\hypersetup{bookmarksdepth=4}
+
+\makeatletter
+
+\newcommand{\toclevel@subsubsubsection}{4}
+\newcounter{subsubsubsection}[subsubsection]
+
+\renewcommand{\thesubsubsubsection}{\thesubsubsection.\arabic{subsubsubsection}}
+
+
+\renewcommand{\theparagraph}{\thesubsubsubsection.\arabic{paragraph}}
+
+\newcommand{\subsubsubsection}{\@startsection{subsubsubsection}{4}{\z@}%
+	{-3.25ex\@plus -1ex \@minus -.2ex}%
+	{1.5ex \@plus .2ex}%
+	{\normalfont\normalsize\it\bfseries}}
+\renewcommand{\paragraph}{\@startsection{paragraph}{5}{\z@}%
+	{3.25ex \@plus1ex \@minus.2ex}%
+	{-1em}%
+	{\normalfont\normalsize\bfseries}}
+\renewcommand{\subparagraph}{\@startsection{subparagraph}{6}{\parindent}%
+	{3.25ex \@plus1ex \@minus .2ex}%
+	{-1em}%
+	{\normalfont\normalsize\bfseries}}
+
+\newcommand*{\l@subsubsubsection}{\@dottedtocline{4}{11em}{5em}}  
+\renewcommand*{\l@paragraph}{\@dottedtocline{5}{12em}{6em}}
+\renewcommand*{\l@subparagraph}{\@dottedtocline{6}{14em}{7em}}
+
+\newcommand{\subsubsubsectionmark}[1]{}
+\makeatother
+
 \begin{document}
 	%\maketitle
-	
-	
+
 	\begin{center}
 		\thispagestyle{empty}
 		%\includegraphics[width=\textwidth,height=\textheight,keepaspectratio]{cover.jpg}
@@ -379,124 +415,122 @@
 	\section*{\zihao{1} 第一部分：构建系统和LLVM的工具}
 	\pagecolor{mygray}
 	\addcontentsline{toc}{section}{第一部分：构建系统和LLVM的工具}
-	\textbf{
-		\subfile{content/1/Section-1.tex}
-	}
+	\textbf{\subfile{content/1/Section-1.tex}}
 	\color{black}
 	\pagecolor{white}
 	
 	\subsection*{\zihao{2} 第1章\hspace{0.5cm}使用有限的资源构建LLVM}
 	\addcontentsline{toc}{subsection}{第1章\hspace{0.5cm}使用有限的资源构建LLVM}
-	%\subfile{content/1/chapter1/0.tex}
+	\subfile{content/1/chapter1/0.tex}
 	
-	\subsubsection*{\zihao{3} 1.1.\hspace{0.2cm}Technical requirements}
-	\addcontentsline{toc}{subsubsection}{1.1.\hspace{0.2cm}Technical requirements}
-	%\subfile{content/1/chapter1/1.tex}
+	\subsubsection*{\zihao{3} 1.1.\hspace{0.2cm}相关准备}
+	\addcontentsline{toc}{subsubsection}{1.1.\hspace{0.2cm}相关准备}
+	\subfile{content/1/chapter1/1.tex}
 	
-	\subsubsection*{\zihao{3} 1.2.\hspace{0.2cm}Cutting down building resources with better tooling}
-	\addcontentsline{toc}{subsubsection}{1.2.\hspace{0.2cm}Cutting down building resources with better tooling}
-	%\subfile{content/1/chapter1/2.tex}
+	\subsubsection*{\zihao{3} 1.2.\hspace{0.2cm}使用工具减少构建资源}
+	\addcontentsline{toc}{subsubsection}{1.2.\hspace{0.2cm}使用工具减少构建资源}
+	\subfile{content/1/chapter1/2.tex}
 	
-	\subsubsection*{\zihao{3} 1.3.\hspace{0.2cm}Tweaking CMake arguments}
-	\addcontentsline{toc}{subsubsection}{1.3.\hspace{0.2cm}Tweaking CMake arguments}
-	%\subfile{content/1/chapter1/3.tex}
+	\subsubsection*{\zihao{3} 1.3.\hspace{0.2cm}调整CMake参数}
+	\addcontentsline{toc}{subsubsection}{1.3.\hspace{0.2cm}调整CMake参数}
+	\subfile{content/1/chapter1/3.tex}
 	
-	\subsubsection*{\zihao{3} 1.4.\hspace{0.2cm}Using GN for a faster turnaround time}
-	\addcontentsline{toc}{subsubsection}{1.4.\hspace{0.2cm}Using GN for a faster turnaround time}
-	%\subfile{content/1/chapter1/4.tex}
+	\subsubsection*{\zihao{3} 1.4.\hspace{0.2cm}使用GN获得更快的周转时间}
+	\addcontentsline{toc}{subsubsection}{1.4.\hspace{0.2cm}使用GN获得更快的周转时间}
+	\subfile{content/1/chapter1/4.tex}
 	
 	\subsubsection*{\zihao{3} 1.5.\hspace{0.2cm}总结}
 	\addcontentsline{toc}{subsubsection}{1.5.\hspace{0.2cm}总结}
-	%\subfile{content/1/chapter1/5.tex}
+	\subfile{content/1/chapter1/5.tex}
 	
-	\subsubsection*{\zihao{3} 1.6.\hspace{0.2cm}Further reading}
-	\addcontentsline{toc}{subsubsection}{1.6.\hspace{0.2cm}Further reading}
-	%\subfile{content/1/chapter1/6.tex}
+	\subsubsection*{\zihao{3} 1.6.\hspace{0.2cm}扩展阅读}
+	\addcontentsline{toc}{subsubsection}{1.6.\hspace{0.2cm}扩展阅读}
+	\subfile{content/1/chapter1/6.tex}
 	\newpage
 	
 	\subsection*{\zihao{2} 第2章\hspace{0.5cm}探索LLVM的构建系统}
 	\addcontentsline{toc}{subsection}{第2章\hspace{0.5cm}探索LLVM的构建系统}
-	%\subfile{content/1/chapter2/0.tex}
+	\subfile{content/1/chapter2/0.tex}
 	
 	\subsubsection*{\zihao{3} 2.1.\hspace{0.2cm}Technical requirements}
 	\addcontentsline{toc}{subsubsection}{2.1.\hspace{0.2cm}Technical requirements}
-	%\subfile{content/1/chapter2/1.tex}
+	\subfile{content/1/chapter2/1.tex}
 	
 	\subsubsection*{\zihao{3} 2.2.\hspace{0.2cm}Exploring a glossary of LLVM's important CMake directives}
 	\addcontentsline{toc}{subsubsection}{2.2.\hspace{0.2cm}Exploring a glossary of LLVM's important CMake directives}
-	%\subfile{content/1/chapter2/2.tex}
+	\subfile{content/1/chapter2/2.tex}
 	
 	\subsubsection*{\zihao{3} 2.3.\hspace{0.2cm}Understanding CMake integration for out-of-tree projects}
 	\addcontentsline{toc}{subsubsection}{2.3.\hspace{0.2cm}Understanding CMake integration for out-of-tree projects}
-	%\subfile{content/1/chapter2/3.tex}
+	\subfile{content/1/chapter2/3.tex}
 	
 	\subsubsection*{\zihao{3} 2.4.\hspace{0.2cm}总结}
 	\addcontentsline{toc}{subsubsection}{2.4.\hspace{0.2cm}总结}
-	%\subfile{content/1/chapter2/4.tex}
+	\subfile{content/1/chapter2/4.tex}
 	\newpage
 	
 	\subsection*{\zihao{2} 第3章\hspace{0.5cm}LLVM LIT测试}
 	\addcontentsline{toc}{subsection}{第3章\hspace{0.5cm}LLVM LIT测试}
-	%\subfile{content/1/chapter3/0.tex}
+	\subfile{content/1/chapter3/0.tex}
 	
 	\subsubsection*{\zihao{3} 3.1.\hspace{0.2cm}Technical requirements}
 	\addcontentsline{toc}{subsubsection}{3.1.\hspace{0.2cm}Technical requirements}
-	%\subfile{content/1/chapter3/1.tex}
+	\subfile{content/1/chapter3/1.tex}
 	
 	\subsubsection*{\zihao{3} 3.2.\hspace{0.2cm}Using LIT in out-of-tree projects}
 	\addcontentsline{toc}{subsubsection}{3.2.\hspace{0.2cm}Using LIT in out-of-tree projects}
-	%\subfile{content/1/chapter3/2.tex}
+	\subfile{content/1/chapter3/2.tex}
 	
 	\subsubsection*{\zihao{3} 3.3.\hspace{0.2cm}Learning useful FileCheck tricks}
 	\addcontentsline{toc}{subsubsection}{3.3.\hspace{0.2cm}Learning useful FileCheck tricks}
-	%\subfile{content/1/chapter3/3.tex}
+	\subfile{content/1/chapter3/3.tex}
 	
 	\subsubsection*{\zihao{3} 3.4.\hspace{0.2cm}Exploring the TestSuite framework}
 	\addcontentsline{toc}{subsubsection}{3.4.\hspace{0.2cm}Exploring the TestSuite framework}
-	%\subfile{content/1/chapter3/4.tex}
+	\subfile{content/1/chapter3/4.tex}
 	
 	\subsubsection*{\zihao{3} 3.5.\hspace{0.2cm}总结}
 	\addcontentsline{toc}{subsubsection}{3.5.\hspace{0.2cm}总结}
-	%\subfile{content/1/chapter3/5.tex}
+	\subfile{content/1/chapter3/5.tex}
 	
 	\subsubsection*{\zihao{3} 3.6.\hspace{0.2cm}Further reading}
 	\addcontentsline{toc}{subsubsection}{3.6.\hspace{0.2cm}Further reading}
-	%\subfile{content/1/chapter3/6.tex}
+	\subfile{content/1/chapter3/6.tex}
 	\newpage
 	
 	\subsection*{\zihao{2} 第4章\hspace{0.5cm}TableGen开发}
 	\addcontentsline{toc}{subsection}{第4章\hspace{0.5cm}TableGen开发}
-	%\subfile{content/1/chapter4/0.tex}
+	\subfile{content/1/chapter4/0.tex}
 	
 	\subsubsection*{\zihao{3} 4.1.\hspace{0.2cm}Technical requirements}
 	\addcontentsline{toc}{subsubsection}{4.1.\hspace{0.2cm}Technical requirements}
-	%\subfile{content/1/chapter4/1.tex}
+	\subfile{content/1/chapter4/1.tex}
 	
 	\subsubsection*{\zihao{3} 4.2.\hspace{0.2cm}Introduction to TableGen syntax}
 	\addcontentsline{toc}{subsubsection}{4.2.\hspace{0.2cm}Introduction to TableGen syntax}
-	%\subfile{content/1/chapter4/2.tex}
+	\subfile{content/1/chapter4/2.tex}
 	
 	\subsubsection*{\zihao{3} 4.3.\hspace{0.2cm}Writing a donut recipe in TableGen}
 	\addcontentsline{toc}{subsubsection}{4.3.\hspace{0.2cm}Writing a donut recipe in TableGen}
-	%\subfile{content/1/chapter4/3.tex}
+	\subfile{content/1/chapter4/3.tex}
 	
 	\subsubsection*{\zihao{3} 4.4.\hspace{0.2cm}Printing a recipe via the TableGen backend}
 	\addcontentsline{toc}{subsubsection}{4.4.\hspace{0.2cm}Printing a recipe via the TableGen backend}
-	%\subfile{content/1/chapter4/4.tex}
+	\subfile{content/1/chapter4/4.tex}
 	
 	\subsubsection*{\zihao{3} 4.5.\hspace{0.2cm}总结}
 	\addcontentsline{toc}{subsubsection}{4.5.\hspace{0.2cm}总结}
-	%\subfile{content/1/chapter4/5.tex}
+	\subfile{content/1/chapter4/5.tex}
 	
 	\subsubsection*{\zihao{3} 4.6.\hspace{0.2cm}Further reading}
 	\addcontentsline{toc}{subsubsection}{4.6.\hspace{0.2cm}Further reading}
-	%\subfile{content/1/chapter4/6.tex}
+	\subfile{content/1/chapter4/6.tex}
 	\newpage
 	
 	\color{white}
-	\section*{\zihao{1} 第二部分：Frontend Development}
+	\section*{\zihao{1} 第二部分：LLVM的前端开发}
 	\pagecolor{mygray}
-	\addcontentsline{toc}{section}{第二部分：Frontend Development}
+	\addcontentsline{toc}{section}{第二部分：LLVM的前端开发}
 	\textbf{
 		\subfile{content/2/Section-2.tex}
 	}
@@ -608,9 +642,9 @@
 	\newpage
 	
 	\color{white}
-	\section*{\zihao{1} 第三部分："Middle-End" Development}
+	\section*{\zihao{1} 第三部分：LLVM的中端开发}
 	\pagecolor{mygray}
-	\addcontentsline{toc}{section}{第三部分："Middle-End" Development}
+	\addcontentsline{toc}{section}{第三部分：LLVM的中端开发}
 	\textbf{
 		\subfile{content/3/Section-3.tex}
 	}
