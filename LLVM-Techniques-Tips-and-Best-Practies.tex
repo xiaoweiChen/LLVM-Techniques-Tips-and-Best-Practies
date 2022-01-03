@@ -21,13 +21,29 @@
 \usepackage{subfigure}
 \usepackage{pifont}
 
+\usepackage{hyperref}  %制作pdf的目录
 \usepackage{subfiles} %使用多文件方式进行
 
 \usepackage{geometry} %设置页边距的包
 \geometry{left=2.5cm,right=2cm,top=2.54cm,bottom=2.54cm} %设置书籍的页边距
 
+% URL 正确换行
+% https://liam.page/2017/05/17/help-the-url-command-from-hyperref-to-break-at-line-wrapping-point/
+\makeatletter
+\def\UrlAlphabet{%
+	\do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j%
+	\do\k\do\l\do\m\do\n\do\o\do\p\do\q\do\r\do\s\do\t%
+	\do\u\do\v\do\w\do\x\do\y\do\z\do\A\do\B\do\C\do\D%
+	\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M\do\N%
+	\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X%
+	\do\Y\do\Z}
+\def\UrlDigits{\do\1\do\2\do\3\do\4\do\5\do\6\do\7\do\8\do\9\do\0}
+\g@addto@macro{\UrlBreaks}{\UrlOrds}
+\g@addto@macro{\UrlBreaks}{\UrlAlphabet}
+\g@addto@macro{\UrlBreaks}{\UrlDigits}
+\makeatother
+
 \usepackage{url}
-\usepackage{hyperref}  %制作pdf的目录
 \hypersetup{hidelinks, %去红框
 	colorlinks=true,
 	allcolors=black,
@@ -322,15 +338,12 @@
 		\item 创建自定义(编译器)消毒器
 	\end{itemize}
 
-	\hspace*{\fill} \\ %插入空行
-	\noindent\textbf{适读人群}
-	
 	本书适用于所有具有LLVM工作经验的软件工程师。如果你是一名学术研究者，这本书将助你在短时间内学习有用的LLVM技能，使你能够快速构建项目原型。编程语言爱好者也会发现这本书中的内容，在LLVM的帮助下构建一种新的编程语言也十分有趣。
 	
 	\hspace*{\fill} \\ %插入空行
 	\noindent\textbf{作者简介}
 	
-	Min-Yih "Min" Hsu是加州大学欧文分校计算机科学博士研究生。他的研究集中在编译器工程、代码优化、高级硬件架构和系统安全。2015年起，他一直是LLVM社区的活跃成员，并贡献了许多补丁。他还致力于通过各种途径倡导LLVM和编译器工程，比如写博客和发表演讲。在业余时间，他喜欢了解各种不同的咖啡豆和煮咖啡的方法。
+	\textbf{Min-Yih "Min" Hsu}是加州大学欧文分校计算机科学博士研究生。他的研究集中在编译器工程、代码优化、高级硬件架构和系统安全。2015年起，他一直是LLVM社区的活跃成员，并贡献了许多补丁。他还致力于通过各种途径倡导LLVM和编译器工程，比如写博客和发表演讲。在业余时间，他喜欢了解各种不同的咖啡豆和煮咖啡的方法。
 	\begin{center}
 		\tt
 		我要感谢所有支持过我的人，特别是家人和导师。\\还要感谢LLVM社区不论出身的包容和善待每一位成员。
@@ -363,15 +376,17 @@
 	\setsecnumdepth{section}
 	
 	\color{white}
-	\section*{\zihao{1} 第一部分：Build System and LLVM-Specific Tooling}
+	\section*{\zihao{1} 第一部分：构建系统和LLVM的工具}
 	\pagecolor{mygray}
-	\addcontentsline{toc}{section}{第一部分：Build System and LLVM-Specific Tooling}
-	\subfile{content/1/Section-1.tex}
+	\addcontentsline{toc}{section}{第一部分：构建系统和LLVM的工具}
+	\textbf{
+		\subfile{content/1/Section-1.tex}
+	}
 	\color{black}
 	\pagecolor{white}
 	
-	\subsection*{\zihao{2} 第1章\hspace{0.5cm}Saving Resources When Building LLVM}
-	\addcontentsline{toc}{subsection}{第1章\hspace{0.5cm}Saving Resources When Building LLVM}
+	\subsection*{\zihao{2} 第1章\hspace{0.5cm}使用有限的资源构建LLVM}
+	\addcontentsline{toc}{subsection}{第1章\hspace{0.5cm}使用有限的资源构建LLVM}
 	%\subfile{content/1/chapter1/0.tex}
 	
 	\subsubsection*{\zihao{3} 1.1.\hspace{0.2cm}Technical requirements}
@@ -399,8 +414,8 @@
 	%\subfile{content/1/chapter1/6.tex}
 	\newpage
 	
-	\subsection*{\zihao{2} 第2章\hspace{0.5cm}Exploring LLVM's Build System Features}
-	\addcontentsline{toc}{subsection}{第2章\hspace{0.5cm}Exploring LLVM's Build System Features}
+	\subsection*{\zihao{2} 第2章\hspace{0.5cm}探索LLVM的构建系统}
+	\addcontentsline{toc}{subsection}{第2章\hspace{0.5cm}探索LLVM的构建系统}
 	%\subfile{content/1/chapter2/0.tex}
 	
 	\subsubsection*{\zihao{3} 2.1.\hspace{0.2cm}Technical requirements}
@@ -418,9 +433,10 @@
 	\subsubsection*{\zihao{3} 2.4.\hspace{0.2cm}总结}
 	\addcontentsline{toc}{subsubsection}{2.4.\hspace{0.2cm}总结}
 	%\subfile{content/1/chapter2/4.tex}
+	\newpage
 	
-	\subsection*{\zihao{2} 第3章\hspace{0.5cm}Testing with LLVM LIT}
-	\addcontentsline{toc}{subsection}{第3章\hspace{0.5cm}Testing with LLVM LIT}
+	\subsection*{\zihao{2} 第3章\hspace{0.5cm}LLVM LIT测试}
+	\addcontentsline{toc}{subsection}{第3章\hspace{0.5cm}LLVM LIT测试}
 	%\subfile{content/1/chapter3/0.tex}
 	
 	\subsubsection*{\zihao{3} 3.1.\hspace{0.2cm}Technical requirements}
@@ -448,8 +464,8 @@
 	%\subfile{content/1/chapter3/6.tex}
 	\newpage
 	
-	\subsection*{\zihao{2} 第4章\hspace{0.5cm}TableGen Development}
-	\addcontentsline{toc}{subsection}{第4章\hspace{0.5cm}TableGen Development}
+	\subsection*{\zihao{2} 第4章\hspace{0.5cm}TableGen开发}
+	\addcontentsline{toc}{subsection}{第4章\hspace{0.5cm}TableGen开发}
 	%\subfile{content/1/chapter4/0.tex}
 	
 	\subsubsection*{\zihao{3} 4.1.\hspace{0.2cm}Technical requirements}
@@ -478,15 +494,17 @@
 	\newpage
 	
 	\color{white}
-	\section*{\zihao{1}  第二部分：Frontend Development}
+	\section*{\zihao{1} 第二部分：Frontend Development}
 	\pagecolor{mygray}
 	\addcontentsline{toc}{section}{第二部分：Frontend Development}
-	\subfile{content/2/Section-2.tex}
+	\textbf{
+		\subfile{content/2/Section-2.tex}
+	}
 	\color{black}
 	\pagecolor{white}
 	
-	\subsection*{\zihao{2} 第5章\hspace{0.5cm}Exploring Clang's Architecture}
-	\addcontentsline{toc}{subsection}{第5章\hspace{0.5cm}Exploring Clang's Architecture}
+	\subsection*{\zihao{2} 第5章\hspace{0.5cm}探索Clang架构}
+	\addcontentsline{toc}{subsection}{第5章\hspace{0.5cm}探索Clang架构}
 	%\subfile{content/2/chapter5/0.tex}
 	
 	\subsubsection*{\zihao{3} 5.1.\hspace{0.2cm}Technical requirements}
@@ -510,8 +528,8 @@
 	%\subfile{content/2/chapter5/5.tex}
 	\newpage
 	
-	\subsection*{\zihao{2} 第6章\hspace{0.5cm}Extending the Preprocessor}
-	\addcontentsline{toc}{subsection}{第6章\hspace{0.5cm}Extending the Preprocessor}
+	\subsection*{\zihao{2} 第6章\hspace{0.5cm}扩展预处理器}
+	\addcontentsline{toc}{subsection}{第6章\hspace{0.5cm}扩展预处理器}
 	%\subfile{content/2/chapter6/0.tex}
 	
 	\subsubsection*{\zihao{3} 6.1.\hspace{0.2cm}Technical requirements}
@@ -539,8 +557,8 @@
 	%\subfile{content/2/chapter6/6.tex}
 	\newpage
 	
-	\subsection*{\zihao{2} 第7章\hspace{0.5cm}Handling AST}
-	\addcontentsline{toc}{subsection}{第7章\hspace{0.5cm}Handling AST}
+	\subsection*{\zihao{2} 第7章\hspace{0.5cm}处理AST}
+	\addcontentsline{toc}{subsection}{第7章\hspace{0.5cm}处理AST}
 	%\subfile{content/2/chapter7/0.tex}
 	
 	\subsubsection*{\zihao{3} 7.1.\hspace{0.2cm}Technical requirements}
@@ -560,8 +578,8 @@
 	%\subfile{content/2/chapter7/4.tex}
 	\newpage
 	
-	\subsection*{\zihao{2} 第8章\hspace{0.5cm}Working with Compiler Flags and Toolchains}
-	\addcontentsline{toc}{subsection}{第8章\hspace{0.5cm}Working with Compiler Flags and Toolchains}
+	\subsection*{\zihao{2} 第8章\hspace{0.5cm}使用编译器标志和工具链}
+	\addcontentsline{toc}{subsection}{第8章\hspace{0.5cm}使用编译器标志和工具链}
 	%\subfile{content/2/chapter8/0.tex}
 	
 	\subsubsection*{\zihao{3} 8.1.\hspace{0.2cm}Technical requirements}
@@ -593,12 +611,14 @@
 	\section*{\zihao{1} 第三部分："Middle-End" Development}
 	\pagecolor{mygray}
 	\addcontentsline{toc}{section}{第三部分："Middle-End" Development}
-	\subfile{content/3/Section-3.tex}
+	\textbf{
+		\subfile{content/3/Section-3.tex}
+	}
 	\color{black}
 	\pagecolor{white}
 	
-	\subsection*{\zihao{2} 第9章\hspace{0.5cm}Working with PassManager and AnalysisManager}
-	\addcontentsline{toc}{subsection}{第9章\hspace{0.5cm}Working with PassManager and AnalysisManager}
+	\subsection*{\zihao{2} 第9章\hspace{0.5cm}使用PassManager和AnalysisManager}
+	\addcontentsline{toc}{subsection}{第9章\hspace{0.5cm}使用PassManager和AnalysisManager}
 	%\subfile{content/3/chapter9/0.tex}
 	
 	\subsubsection*{\zihao{3} 9.1.\hspace{0.2cm}Technical requirements}
@@ -626,8 +646,8 @@
 	%\subfile{content/3/chapter9/6.tex}
 	\newpage
 	
-	\subsection*{\zihao{2} 第10章\hspace{0.5cm}Processing LLVM IR}
-	\addcontentsline{toc}{subsection}{第10章\hspace{0.5cm}Processing LLVM IR}
+	\subsection*{\zihao{2} 第10章\hspace{0.5cm}处理LLVM IR}
+	\addcontentsline{toc}{subsection}{第10章\hspace{0.5cm}处理LLVM IR}
 	%\subfile{content/3/chapter10/0.tex}
 	
 	\subsubsection*{\zihao{3} 10.1.\hspace{0.2cm}Technical requirements}
@@ -651,8 +671,8 @@
 	%\subfile{content/3/chapter10/5.tex}
 	\newpage
 	
-	\subsection*{\zihao{2} 第11章\hspace{0.5cm}Gearing Up with Support Utilities}
-	\addcontentsline{toc}{subsection}{第11章\hspace{0.5cm}Gearing Up with Support Utilities}
+	\subsection*{\zihao{2} 第11章\hspace{0.5cm}准备相关的工具}
+	\addcontentsline{toc}{subsection}{第11章\hspace{0.5cm}准备相关的工具}
 	%\subfile{content/3/chapter11/0.tex}
 	
 	\subsubsection*{\zihao{3} 11.1.\hspace{0.2cm}Technical requirements}
@@ -684,8 +704,8 @@
 	%\subfile{content/3/chapter11/7.tex}
 	\newpage
 	
-	\subsection*{\zihao{2} 第12章\hspace{0.5cm}Learning LLVM IR Instrumentation}
-	\addcontentsline{toc}{subsection}{第12章\hspace{0.5cm}Learning LLVM IR Instrumentation}
+	\subsection*{\zihao{2} 第12章\hspace{0.5cm}学习LLVM IR表达式}
+	\addcontentsline{toc}{subsection}{第12章\hspace{0.5cm}学习LLVM IR表达式}
 	%\subfile{content/3/chapter12/0.tex}
 	
 	\subsubsection*{\zihao{3} 12.1.\hspace{0.2cm}Technical requirements}

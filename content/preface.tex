@@ -1,3 +1,114 @@
+\begin{flushright}
+	\zihao{0} 前言
+\end{flushright}
 
+大多数程序员的开发流程都有编译器——或者某种形式的编译技术。现代编译器不仅将高级编程语言转换为低层机器码，而且在优化所编译速度、大小甚至内存占用方面也扮演着关键性角色。要有这些特性，构建可使用的编译器就是一项具有挑战性的任务。
+
+LLVM是一个编译器优化和代码生成的框架，提供了构建块，大大减少了开发人员创建高质量优化编译器和编程语言工具的工作。Clang是该公司最著名的产品之一，是C族语言编译器，可构建数千个广泛使用的软件，包括谷歌Chrome浏览器和iOS应用程序。LLVM也用于许多不同的编程语言的编译器中，比如Apple的Swift。毫不夸张地说，可以用LLVM创建一种新的编程语言，就可以成为时下最热门的话题之一。
+
+LLVM提供了广泛的特性，有成百个库和成千个API，包括优化关键功能到实际实用程序当中。本书中，为LLVM中两个最重要的子系统——Clang和中端库提供了一个完整的开发指南。首先介绍几个组件和开发最佳实践，可以积累一些LLVM的开发经验，再了解如何使用Clang进行开发。更具体地说，我们将专注于增强和定制Clang中的功能。本书的最后一部分，将了解有关LLVM IR开发的关键知识。这包括如何用最新的语法编写LLVM Pass，以及如何处理不同的IR结构。还会有几个实用例程，可以极大地提高LLVM开发的生产率。注意，在本书中不假设任何特定的LLVM版本——试图保持最新，并囊括来自LLVM源代码的最新特性。
+
+本书每一章都提供了一些代码片段和项目示例。可以从本书的GitHub存储库中下载它们，并尝试进行修改。
+
+\hspace*{\fill} \\ %插入空行
+\noindent\textbf{适读人群}
+
+本书适用于所有具有LLVM工作经验的软件工程师，本书会提供了简明的开发指南和参考。如果你是一名学术研究者，这本书将助你在短时间内学习有用的LLVM技能，使你能够快速构建项目原型。编程语言爱好者也会发现这本书中的内容，在LLVM的帮助下构建一种新的编程语言也十分有趣。
+
+
+\hspace*{\fill} \\ %插入空行
+\textbf{本书内容}
+
+\textit{第1章，使用有限的资源构建LLVM}。简要介绍了LLVM，并介绍如何在不过多消耗CPU、内存资源和磁盘空间的情况下构建LLVM。这为以后的开发周期和更流畅的体验奠平了道路。
+
+\textit{第2章，探索LLVM的构建系统}。介绍如何编写用于源码树内和树外LLVM开发的CMake构建脚本，将了解到如何利用LLVM的自定义构建系统来编写更具表现力和健壮性的构建脚本。
+
+\textit{第3章，LLVM LIT测试}。介绍了如何使用LLVM的LIT基础架构运行测试。本章不仅可以更好地理解LLVM源码树中测试的工作原理，还能将这种直观的、可扩展的测试结构集成到其他项目中。
+
+\textit{第4章，TableGen开发}。介绍了如何编写TableGen——一种由LLVM发明的\textbf{特殊领域特定语言(DSL)}。这里使用TableGen作为处理结构化数据的工具，可以了解在LLVM之外如何使用TableGen。
+
+\textit{第5章，探索Clang架构}。标志着关于Clang主题的开始。本章为概述了Clang，特别是编译流程，并介绍了各个组件在Clang的编译流程中的作用。
+
+\textit{第6章，扩展预处理器}。展示了Clang的预处理器架构，以及如何不需要修改LLVM源代码树中的任何代码，开发一个插件来扩展其功能。
+
+\textit{第7章，处理AST}。介绍了如何在Clang中使用\textbf{抽象语法树(AST)}进行开发。包括了解使用AST的内存表示的主题，以及创建插件的教程，该插件将自定义的AST处理逻辑插入到编译流中。
+
+\textit{第8章，使用编译器标志和工具链}。涵盖了向Clang添加自定义编译器标志和工具链的步骤，以及如何让Clang支持新特性或新平台。
+
+\textit{第9章，使用PassManager和AnalysisManager}。标志着对LLVM中端库讨论的开始。本章的重点是编写一个LLVM Pass——使用PassManager语法，以及如何通过AnalysisManager访问程序分析数据。
+
+\textit{第10章，处理LLVM IR}。这是一个很大的章节，包含了关于LLVM IR的各种核心知识，包括LLVM IR的内存表示结构和使用不同的IR单元(如函数、指令和循环)等技能。
+
+\textit{第11章，准备相关的工具}。介绍了一些实用程序，在使用LLVM IR时，用以提高工作效率(如有较好的调试经验)。
+
+\textit{第12章，学习LLVM IR表达式}。展示表达式如何在LLVM IR上进行工作。它涵盖了两个主要的用例：消毒器和\textbf{配置文件引导优化(PGO)}。对于前者，将了解如何创建自定义消毒器。对于后者，将了解如何在LLVM Pass中利用PGO数据。
+
+\hspace*{\fill} \\ %插入空行
+\textbf{编译环境}
+
+这本书旨在向您介绍LLVM的最新特性，因此我们鼓励您在12.0版本之后使用LLVM，或使用开发分支(即主分支)。
+
+假设您正在Linux或Unix系统(包括macOS)上工作。本书中的工具和示例命令大多是在命令行界面中运行的，您可以自由地使用任何代码编辑器或IDE来编写代码。
+
+\begin{table}[H]
+	\begin{tabular}{|l|l|}
+		\hline
+		书中涉及的软件/硬件                                                                                                                  & 操作系统                                                             \\ \hline
+		LLVM版本高于或等于12.x                                                                                                                  & \begin{tabular}[c]{@{}l@{}}macOS或Linux(任意衍生版)\end{tabular}                                                             \\ \hline
+		\begin{tabular}[c]{@{}l@{}} GCC 5.1或更高版本, 或者是支持C++14的任意编译器\end{tabular} &  \\ \hline
+		CMake 3.13.4或更高版本                                                                                                                                  &                                                                                  \\ \hline
+		Python 3.x                                                                                                                                           &                                                                                  \\ \hline
+		Ninja Build或 GNU Make                                                                                                                                    &                                                                                  \\ \hline
+		Graphviz                                                                                                                                    &                                                                                  \\ \hline
+	\end{tabular}
+\end{table}
+
+在\textit{第1章，使用有限的资源构建LLVM}中，将详细介绍如何从源代码构建LLVM。
+
+\textbf{如果你正在使用这本书的数字版本，我们建议自己输入代码或通过GitHub库访问代码(链接在下一节中提供)。这样做将帮助您避免与复制和粘贴代码相关的任何潜在错误。}
+
+\hspace*{\fill} \\ %插入空行
+\textbf{下载示例}
+
+您可以从GitHub网站\url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clang-and-Middle-End-Libraries}下载本书的示例代码文件。如果代码有更新，它将在现有的GitHub库中更新。
+
+我们还有其他的代码包，还有丰富的书籍和视频目录，都在\url{https://github.com/PacktPublishing/}。去看看吧!
+
+\hspace*{\fill} \\ %插入空行
+\textbf{下载彩图}
+
+我们还提供了一个PDF文件，其中包含了本书中使用的屏幕截图/图表的彩色图像。可以在这里下载：\url{https://static.packt-cdn.com/downloads/9781838824952\_ColorImages.pdf}。
+
+\hspace*{\fill} \\ %插入空行
+\textbf{联系方式}
+
+我们欢迎读者的反馈。
+
+\textbf{反馈}：如果你对这本书的任何方面有疑问，需要在你的信息的主题中提到书名，并给我们发邮件到\url{customercare@packtpub.com}。
+
+\textbf{勘误}：尽管我们谨慎地确保内容的准确性，但错误还是会发生。如果您在本书中发现了错误，请向我们报告，我们将不胜感激。请访问\url{www.packtpub.com/support/errata}，选择相应书籍，点击勘误表提交表单链接，并输入详细信息。
+
+\textbf{盗版}:如果您在互联网上发现任何形式的非法拷贝，非常感谢您提供地址或网站名称。请通过\url{copyright@packt.com}与我们联系，并提供材料链接。
+
+\textbf{如果对成为书籍作者感兴趣}：如果你对某主题有专长，又想写一本书或为之撰稿，请访问\url{authors.packtpub.com}。
+
+\hspace*{\fill} \\ %插入空行
+\textbf{欢迎评论}
+
+请留下评论。当您阅读并使用了本书，为什么不在购买网站上留下评论呢？其他读者可以看到您的评论，并根据您的意见来做出购买决定。我们在Packt可以了解您对我们产品的看法，作者也可以看到您对他们撰写书籍的反馈。谢谢你！
+
+想要了解Packt的更多信息，请访问\url{packt.com}。
 
 \newpage
+
+
+
+
+
+
+
+
+
+
+
+
