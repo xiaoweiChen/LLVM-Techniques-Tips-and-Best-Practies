@@ -13,22 +13,24 @@ The exact versions of these items change from time to time. Check out \url{https
 This chapter assumes you have built an LLVM before. If that's not the case, perform the following steps:
 
 \begin{enumerate}
-	\item Grab a copy of the LLVM source tree from GitHub:
+	
+\item Grab a copy of the LLVM source tree from GitHub:
 \begin{tcblisting}{commandshell={}}
 $ git clone https://github.com/llvm/llvm-project
 \end{tcblisting}
 
-	\item Usually, the default branch should build without errors. If you want to use release versions that are more stable, such as release version 10.x, use the following command:
+\item Usually, the default branch should build without errors. If you want to use release versions that are more stable, such as release version 10.x, use the following command:
 \begin{tcblisting}{commandshell={}}
 $ git clone -b release/10.x \
     https://github.com/llvm/llvmproject
 \end{tcblisting}
 
-	\item Finally, you should create a build folder where you're going to invoke the CMake command. All the building artifacts will also be placed inside this folder. This can be done using the following command:
+\item Finally, you should create a build folder where you're going to invoke the CMake command. All the building artifacts will also be placed inside this folder. This can be done using the following command:
 \begin{tcblisting}{commandshell={}}
 $ mkdir .my_build
 $ cd .my_build
 \end{tcblisting}
+
 \end{enumerate}
 
 

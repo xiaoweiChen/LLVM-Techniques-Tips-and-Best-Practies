@@ -294,25 +294,12 @@
 
 \renewcommand{\thesubsubsubsection}{\thesubsubsection.\arabic{subsubsubsection}}
 
-
-\renewcommand{\theparagraph}{\thesubsubsubsection.\arabic{paragraph}}
-
 \newcommand{\subsubsubsection}{\@startsection{subsubsubsection}{4}{\z@}%
 	{-3.25ex\@plus -1ex \@minus -.2ex}%
 	{1.5ex \@plus .2ex}%
-	{\normalfont\normalsize\it\bfseries}}
-\renewcommand{\paragraph}{\@startsection{paragraph}{5}{\z@}%
-	{3.25ex \@plus1ex \@minus.2ex}%
-	{-1em}%
-	{\normalfont\normalsize\bfseries}}
-\renewcommand{\subparagraph}{\@startsection{subparagraph}{6}{\parindent}%
-	{3.25ex \@plus1ex \@minus .2ex}%
-	{-1em}%
-	{\normalfont\normalsize\bfseries}}
+	{\normalfont\normalsize\bf\bfseries}}
 
 \newcommand*{\l@subsubsubsection}{\@dottedtocline{4}{11em}{5em}}  
-\renewcommand*{\l@paragraph}{\@dottedtocline{5}{12em}{6em}}
-\renewcommand*{\l@subparagraph}{\@dottedtocline{6}{14em}{7em}}
 
 \newcommand{\subsubsubsectionmark}[1]{}
 \makeatother
