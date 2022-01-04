@@ -1,0 +1,93 @@
+CMake的可移植和灵活性非常好，已经经过了许多工业项目的实战测试。然而，当涉及到重新配置时，它就会有一些严重的问题。正如我们在前几节中看到的，已生成的构建文件，可以通过编辑build文件夹中的CMakeCache.txt文件来修改一些CMake参数。当你再次调用构建命令时，CMake会重新配置构建文件。如果在源文件夹中编辑CMakeLists.txt文件，同样的重新配置也会出现。CMake的重配置过程主要有两个缺点:
+
+\begin{itemize}
+\item 在某些系统中，CMake的配置过程非常缓慢。即使是理论上只运行部分流程的重构，有时仍然需要很长时间。
+
+\item 有时CMake会无法解决不同变量和构建目标之间的依赖关系，所以你的更改不会反映出这一点。最糟糕的情况是，它会悄无声息地失败，并花费您很长时间来查找问题。
+	
+\end{itemize}
+
+Ninja，更广为人知的名字是GN，是谷歌的许多项目使用的一个构建文件生成器，比如Chromium。GN从它自己的描述语言生成Ninja文件。它具有快速配置时间和可靠的参数管理的良好声誉。LLVM自2018年末(大约版本8.0.0)以来，已经将GN支持作为一种可选的(实验性的)构建方法。如果您的开发对构建文件进行了更改，或者您想在短时间内尝试不同的构建选项，那么GN尤其有用。
+
+使用GN构建LLVM的步骤如下:
+
+\begin{enumerate}
+\item LLVM的GN支持位于llvm/utils/gn文件夹中。切换到该文件夹后，运行以下get.py脚本，在本地下载GN的可执行文件:
+
+\begin{tcblisting}{commandshell={}}
+$ cd llvm/utils/gn
+$ ./get.py
+\end{tcblisting}
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, title=使用特定版本的GN]
+\hspace*{0.7cm}如果希望使用自定义GN可执行文件，而不是get.py获取的可执行文件，只需将特定版本的GN放入系统的PATH中。如果您想知道还有哪些其他GN版本可用，您可以在\url{https://dev.chromium.org/developers/how-tos/install-depot-tools}查看关于安装depot\_tools的信息。
+\end{tcolorbox}
+
+\item 在同一个文件夹中使用gn.py生成构建文件(本地版本的gn.py只是一个包装器，用于设置基本环境):
+
+\begin{tcblisting}{commandshell={}}
+$ ./gn.py gen out/x64.release
+\end{tcblisting}
+
+out/x64.release是构建文件夹的名称。通常，GN用户的文件命名规则为\texttt{<architecture>.<build type>.<other features>}。
+
+\item 最后，可以切换到构建文件夹并启动Ninja:
+
+\begin{tcblisting}{commandshell={}}
+$ cd out/x64.release
+$ ninja <build target>
+\end{tcblisting}
+
+\item 或者，使用\texttt{-C}选项:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja -C out/x64.release <build target>
+\end{tcblisting}
+	
+\end{enumerate}
+
+您可能已经知道初始构建文件生成过程非常快。现在，如果您想更改一些构建参数，请找到args.gn文件，在build文件夹下(out/x64.release/args.gn)。如果想改变构建类型来调试和改变目标来构建(修改\texttt{LLVM\_TARGETS\_TO\_BUILD} CMake参数)到X86和AArch64。建议使用以下命令启动一个编辑器来编辑args.gn:
+
+\begin{tcblisting}{commandshell={}}
+$ ./gn.py args out/x64.release
+\end{tcblisting}
+
+在args.gn中，输入如下内容:
+
+\begin{tcolorbox}[colback=white,colframe=black]
+\# Inside args.gn \\
+is\_debug = true \\
+llvm\_targets\_to\_build = ["X86", "AArch64"]
+\end{tcolorbox}
+
+保存并退出编辑器后，GN将执行一些语法检查并重新生成构建文件(当然，您可以不使用gn命令编辑args.gn，这样在调用ninja命令之前，构建文件不会重新生成)，这种重新生成/重新配置也会很快。最重要的是，不会有任何不确定的行为。由于GN的语言设计，可以很容易地分析不同构建参数之间的关系，几乎没有歧义。
+
+GN的构建参数列表可以通过以下命令找到:
+
+\begin{tcblisting}{commandshell={}}
+$ ./gn.py args --list out/x64.release
+\end{tcblisting}
+
+不幸的是，在写这本书的时候，仍然有很多CMake参数没有移植到GN中。GN不是LLVM现有的CMake构建系统的替代品，但它是一个替代方案。尽管如此，如果希望在涉及许多构建配置更改的开发中获得快速的处理时间，那么GN仍然是一个不错的构建方法。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

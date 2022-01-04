@@ -1,0 +1,123 @@
+本节将向您展示LLVM构建系统中一些最常见的CMake参数，可以帮助您以最高效率实现自定义构建。
+
+开始之前，您应该有一个配置了cmake的构建文件夹。以下大部分小节将修改构建文件夹中的CMakeCache.txt。
+
+\subsubsubsection{1.3.1\hspace{0.2cm}选择正确的构建类型}
+
+LLVM使用CMake提供的几种预定义构建类型。其中最常见的类型如下:
+
+\begin{itemize}
+\item \texttt{Release}: 如果没有指定任何类型，这就是默认的构建类型。它将采用最高的优化级别(通常是-O3)，并消除大多数调试信息。通常，这种构建类型会使构建速度稍微慢一些。
+	
+\item \texttt{Debug}: 此构建类型将在不应用任何优化(即-O0)的情况下进行编译，保存所有的调试信息。注意，这将生成大量的工件，通常占用约20GB的空间，所以在使用这种构建类型时，请确保有足够的存储空间。这通常会使构建速度稍微快一些，因为没有执行优化。
+	
+\item \texttt{RelWithDebInfo}: 这种构建类型尽可能多地应用编译器优化(通常是-O2)，并保留所有调试信息。这是一个在空间消耗、运行速度和可调试性之间进行平衡的选项。
+
+\end{itemize}
+
+可以选择其中一个使用\texttt{CMAKE\_BUILD\_TYPE CMAKE}变量。例如，要使用\texttt{RelWithDebInfo}类型，可以使用以下命令:
+
+\begin{tcblisting}{commandshell={}}
+$ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo …
+\end{tcblisting}
+
+建议首先使用\texttt{RelWithDebInfo}(如果你稍后要调试LLVM)。现代编译器在改进优化后的二进制文件中，提升调试信息的质量方面已经走了很长一段路。所以，可以先尝试一下，以避免不必要的存储空间浪费。如果不太顺利，可以使用\texttt{Debug}方式。
+
+除了配置构建类型，\texttt{LLVM\_ENABLE\_ASSERTIONS}是另一个CMake(布尔型)参数，它控制断言(也就是，\texttt{assert(bool predicate)}函数，如果\texttt{predicate}参数不为真，将终止程序)是否启用。默认情况下，该标志只有在构建类型为\texttt{Debug}时才为真，但可以手动打开它，即使是在其他构建类型中，也可以强制执行更严格的检查。
+
+\subsubsubsection{1.3.2\hspace{0.2cm}避免构建所有目标}
+
+LLVM支持的(硬件)目标数量在过去几年中迅速增长。在写这本书的时候，有近20个官方支持的目标。它们中的每一个都处理重要的任务，如本机代码生成，需要大量的时间来构建。然而，在同一时间完成所有这些目标的机会很低。因此，可以通过CMake参数\texttt{LLVM\_TARGETS\_TO\_BUILD}选择要构建的目标子集。例如，只构建X86目标，我们可以使用以下命令:
+
+\begin{tcblisting}{commandshell={}}
+$ cmake -DLLVM_TARGETS_TO_BUILD="X86" …
+\end{tcblisting}
+
+也可以使用分号分隔的列表指定多个目标，如下所示:
+
+\begin{tcblisting}{commandshell={}}
+$ cmake -DLLVM_TARGETS_TO_BUILD="X86;AArch64;AMDGPU" …
+\end{tcblisting}
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, title=用双引号包围目标列表!]
+\hspace*{0.7cm}在某些shell中，例如BASH，分号是命令的结束符号。因此，如果没有双引号的目标列表，CMake命令的其余部分将被切断。
+\end{tcolorbox}
+
+接下来，让我们看看如何调整CMake参数来构建动态库。
+
+\subsubsubsection{1.3.3\hspace{0.2cm}构建动态库}
+
+LLVM最具标志性的特点之一是其\textbf{模块化设计}。每个组件、优化算法、代码生成和实用程序库都放入自己的库中，开发人员可以根据它们的使用情况链接各自的库。默认情况下，每个组件都构建为\textbf{静态库}(Unix/Linux下是\texttt{*.a}，Windows下是\texttt{*.lib})。然而，静态库有以下缺点:
+
+\begin{itemize}
+\item 链接静态库通常比链接动态库花费更多的时间(Unix/Linux下是\texttt{*.so}，Windows下是\texttt{*.dll})。
+
+\item 如果多个可执行文件链接到同一组库上，就像许多LLVM工具那样，当使用静态库方法时，可执行文件的总大小将比动态库大得多(因为每个可执行文件都有一个这些库的副本)。
+
+\item 当使用调试器(例如GDB)调试LLVM程序时，通常会在一开始就花费相当多的时间来加载静态链接的可执行文件，从而降低了调试体验。
+	
+\end{itemize}
+
+因此，建议在开发阶段通过将CMake参数\texttt{BUILD\_SHARED\_LIBS}将每个LLVM组件构建为动态库:
+
+\begin{tcblisting}{commandshell={}}
+$ cmake -DBUILD_SHARED_LIBS=ON …
+\end{tcblisting}
+
+这将为您节省大量的存储空间，并加快构建过程。
+
+\subsubsubsection{1.3.4\hspace{0.2cm}拆解调试信息}
+
+当您在调试模式下构建程序时——例如，在使用GCC和Clang时添加\texttt{-g}标志——默认情况下，生成的二进制文件包含一个存储调试信息的部分。这些信息对于使用调试器(例如，GDB)调试该程序至关重要。LLVM是一个庞大而复杂的项目，所以当你在调试模式下构建它时——使用\texttt{CMAKE\_BUILD\_TYPE=Debug}——编译的库和可执行文件会带来大量的调试信息，占用大量的磁盘空间。这会导致以下问题:
+
+\begin{itemize}
+\item 由于C/C++的设计，相同调试信息的多个副本可能嵌入到不同的对象文件中(例如，头文件的调试信息可能嵌入到包含它的每个库中)，这浪费了大量的磁盘空间。
+
+\item 链接阶段，链接器需要将对象文件及其相关的调试信息加载到内存中，这意味着如果对象文件包含大量的调试信息，内存压力将增加。
+	
+\end{itemize}
+
+为了解决这些问题，LLVM中的构建系统允许将调试信息从原始对象文件中分离到单独的文件中。通过将调试信息从目标文件中分离出来，同一个源文件的调试信息压缩到了另一个地方，从而避免了不必要的重复创建，节省了大量的磁盘空间。此外，由于调试信息不再是对象文件的一部分，连接器不再需要将它们加载到内存中，从而节省了大量的内存资源。最后，这个特性还可以提高增量构建的速度——也就是说，在(小的)代码更改之后重新构建项目——因为我们只需要在单个地方更新修改过的调试信息。
+
+要使用这个特性，请使用\texttt{LLVM\_USE\_SPLIT\_DWARF}CMake变量:
+
+\begin{tcblisting}{commandshell={}}
+$ cmake -DCMAKE_BUILD_TYPE=Debug -DLLVM_USE_SPLIT_DWARF=ON …
+\end{tcblisting}
+
+请注意，这个CMake变量只适用于使用DWARF调试格式的编译器，包括GCC和Clang。
+
+\subsubsubsection{1.3.5\hspace{0.2cm}构建优化版的llvm-tblgen}
+
+\textbf{TableGen}是一种\textbf{领域特定语言(DSL)}，用于描述结构化数据，这些数据将转换成相应的C/C++代码，作为LLVM构建过程的一部分(将在后面的章节中了解更多)，转换工具为\texttt{llvm-tblgen}。也就是说，\texttt{llvm-tblgen}的运行时间会影响到LLVM本身的构建时间。因此，如果不开发TableGen部分，那么构建一个优化的\texttt{llvm-tblgen}版本是一个好主意，无论全局构建类型(即\texttt{CMAKE\_BUILD\_TYPE})，使\texttt{llvm-tblge}n运行得更快，就可以缩短整体构建时间。
+
+例如，下面的CMake命令将创建一个构建配置，将构建除\texttt{llvm-tblgen}可执行文件之外的所有内容的调试版本，而\texttt{llvm-tblgen}可执行文件将以优化版本进行构建:
+
+\begin{tcblisting}{commandshell={}}
+$ cmake -DLLVM_OPTIMIZED_TABLEGEN=ON -DCMAKE_BUILD_TYPE=Debug …
+\end{tcblisting}
+
+最后，将了解如何使用Clang和新PassManager。
+
+\subsubsubsection{1.3.6\hspace{0.2cm}使用新PassManager和Clang}
+
+Clang是LLVM官方的C家族前端(包括C、C++和Objective-C)，使用LLVM的库来生成机器代码，这些代码是由LLVM中最重要的子系统之一——PassManager组织起来的。PassManager将优化和代码生成所需的所有任务(即Pass)放在一起。
+
+在第9章中将引入LLVM的新PassManager，它将在未来的某个时候取代旧PassManager。与旧PassManager相比，新的PassManager的运行速度更快。这个优势间接地为Clang带来了更好的运行时性能。因此，如果我们使用Clang构建LLVM的源代码树，并且启用了新的PassManager，编译速度将会更快。大多数主流的Linux发行包存储库已经包含了Clang。如果你想要一个更稳定的PassManager实现，建议使用Clang 6.0或更高版本。可以通过设置CMake变量\texttt{LLVM\_USE\_NEWPM}用新PassManager构建LLVM，如下所示:
+
+\begin{tcblisting}{commandshell={}}
+$ env CC=`which clang` CXX=`which clang++` \
+    cmake -DLLVM_USE_NEWPM=ON …
+\end{tcblisting}
+
+LLVM是一个庞大的项目，需要花费大量时间来构建，前两节介绍了一些提高构建速度的有用技巧和提示。下一节中，我们将介绍一个用于构建LLVM的替代构建系统。与默认的CMake构建系统相比，它有一些优势，这意味着它将更适合于某些场景。
+
+
+
+
+
+
+
+
+
+
