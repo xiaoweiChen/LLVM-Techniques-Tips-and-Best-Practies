@@ -1,0 +1,139 @@
+Implementing your features in an in-tree project is good for prototyping, since most of the infrastructure is already there. However, there are many scenarios where pulling the entire LLVM source tree into your code base is not the best idea, compared to creating an out-of-tree project and linking it against the LLVM libraries. For example, you only want to create a small code refactoring tool using LLVM's features and open source it on GitHub, so telling developers on GitHub to download a multi-gigabyte LLVM source tree along with your little tool might not be a pleasant experience.
+
+There are at least two ways to configure out-of-tree projects to link against LLVM:
+
+\begin{itemize}
+\item Using the llvm-config tool
+
+\item Using LLVM's CMake modules
+	
+\end{itemize}
+
+Both approaches help you sort out all the details, including header files and library paths. However, the latter creates more concise and readable CMake scripts, which is preferable for projects that are already using CMake. This section will show the essential steps of using LLVM's CMake modules to integrate it into an out-of-tree CMake project.
+
+First, we need to prepare an out-of-tree (C/C++) CMake project. The core CMake functions/macros we discussed in the previous section will help us work our way through this. Let's look at our steps:
+
+\begin{enumerate}
+\item We are assuming that you already have the following CMakeLists.txt skeleton for a project that needs to be linked against LLVM libraries:
+
+\begin{lstlisting}[style=styleCMake]
+project(MagicCLITool)
+set(SOURCE_FILES
+	main.cpp)
+add_executable(magic-cli
+	${SOURCE_FILES})
+\end{lstlisting}
+
+Regardless of whether you're trying to create a project generating executable, just like the one we saw in the preceding code block, or other artifacts such as libraries or even LLVM Pass plugins, the biggest question now is how to get include path, as well as library path.
+
+\item To resolve include path and library path, LLVM provides the standard CMake package interface for you to use the find\_package CMake directive to import various configurations, as follows:
+	
+\begin{lstlisting}[style=styleCMake]
+project(MagicCLITool)
+find_package(LLVM REQUIRED CONFIG)
+include_directories(${LLVM_INCLUDE_DIRS})
+link_directories(${LLVM_LIBRARY_DIRS})
+…
+\end{lstlisting}
+	
+To make the find\_package trick work, you need to supply the LLVM\_DIR CMake variable while invoking the CMake command for this project:
+\begin{tcblisting}{commandshell={}}
+$ cmake -DLLVM_DIR=<LLVM install path>/lib/cmake/llvm …
+\end{tcblisting}
+
+Make sure it's pointing to the lib/cmake/llvm subdirectory under LLVM install path.
+	
+\item After resolving the include path and library, it's time to link the main executable against LLVM's libraries. LLVM's custom CMake functions (for example, add\_llvm\_executable) will be really useful here. But first, CMake needs to be able to find those functions.
+
+The following snippet imports LLVM's CMake module (more specifically, the AddLLVM CMake module), which contains those LLVM-specific functions/macros that we introduced in the previous section:
+
+\begin{lstlisting}[style=styleCMake]
+find_package(LLVM REQUIRED CONFIG)
+…
+list(APPEND CMAKE_MODULE_PATH ${LLVM_CMAKE_DIR})
+include(AddLLVM)
+\end{lstlisting}
+
+\item The following snippet adds the executable build target using the CMake function we learned about in the previous section:
+
+\begin{lstlisting}[style=styleCMake]
+find_package(LLVM REQUIRED CONFIG)
+…
+include(AddLLVM)
+set(LLVM_LINK_COMPONENTS
+	Support
+	Analysis)
+add_llvm_executable(magic-cli
+	main.cpp)
+\end{lstlisting}
+
+\item Adding the library target makes no difference:
+\begin{lstlisting}[style=styleCMake]
+find_package(LLVM REQUIRED CONFIG)
+…
+include(AddLLVM)
+add_llvm_library(MyMagicLibrary
+	lib.cpp
+	LINK_COMPONENTS
+	Support Analysis)
+\end{lstlisting}
+
+\item Finally, add the LLVM Pass plugin:
+\begin{lstlisting}[style=styleCMake]
+find_package(LLVM REQUIRED CONFIG)
+…
+include(AddLLVM)
+add_llvm_pass_plugin(MyMagicPass
+	ThePass.cpp)
+\end{lstlisting}
+
+\item In practice, you also need to be careful of LLVM-specific definitions and the RTTI setting:
+\begin{lstlisting}[style=styleCMake]
+find_package(LLVM REQUIRED CONFIG)
+…
+add_definitions(${LLVM_DEFINITIONS})
+if(NOT ${LLVM_ENABLE_RTTI})
+	# For non-MSVC compilers
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+endif()
+add_llvm_xxx(source.cpp)
+\end{lstlisting}
+This is especially true for the RTTI part because, by default, LLVM is not built with RTTI support, but normal C++ applications are. A compilation error will be thrown if there is an RTTI mismatch between your code and LLVM's libraries.
+
+\end{enumerate}
+
+Despite the convenience of developing inside LLVM's source tree, sometimes, enclosing the entire LLVM source in your project might not be feasible. So, instead, we must create an out-of-tree project and integrate LLVM as a library. This section showed you how to integrate LLVM into your CMake-based out-of-tree projects and make good use of the LLVM-specific CMake directives we learned about in the Exploring a glossary of LLVM's important CMake directives section.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

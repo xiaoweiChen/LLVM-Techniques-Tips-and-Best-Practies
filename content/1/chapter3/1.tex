@@ -1,0 +1,70 @@
+The core of LIT is written in Python, so please make sure you have Python 2.7 or Python 3.x installed (Python 3.x is preferable, as LLVM is gradually retiring Python 2.7 now).
+
+In addition, there are a bunch of supporting utilities, such as FileCheck, which will be used later. To build those utilities, the fastest way, unfortunately, is to build any of the check-XXX (phony) targets. For example, we could build check-llvm-support, as shown in the following code:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja check-llvm-support
+\end{tcblisting}
+
+Finally, the last section requires that llvm-test-suite has been built, which is a separate repository from llvm-project. We can clone it by using the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ git clone https://github.com/llvm/llvm-test-suite
+\end{tcblisting}
+
+The easiest way to configure the build will be using one of the cached CMake configs. For example, to build the test suite with optimizations (O3), we will use the following code:
+
+\begin{tcblisting}{commandshell={}}
+$ mkdir .O3_build
+$ cd .O3_build
+$ cmake -G Ninja -DCMAKE_C_COMPILER=<desired Clang binary \
+  path> -C ../cmake/caches/O3.cmake ../
+\end{tcblisting}
+
+Then, we can build it normally using the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja all
+\end{tcblisting}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

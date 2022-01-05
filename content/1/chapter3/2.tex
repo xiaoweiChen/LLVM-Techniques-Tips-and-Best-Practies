@@ -1,0 +1,125 @@
+Writing an in-tree LLVM IR regression test is pretty easy: all you need to do is annotate the IR file with testing directives. Look at the following script, for example:
+
+\begin{tcolorbox}[colback=white,colframe=black]
+\tt
+; RUN: opt < \%s -instcombine -S -o - | FileCheck \%s \\
+target triple = "x86\_64-unknown-linux" \\
+define i32 @foo(i32 \%c) \{ \\
+\hspace*{0.3cm}entry: \\
+\hspace*{0.3cm}; CHECK: [[RET:\%.+]] = add nsw i32 \%c, 3 \\
+\hspace*{0.3cm}; CHECK: ret i32 [[RET]] \\
+\hspace*{0.3cm}\%add1 = add nsw i32 \%c, 1 \\
+\hspace*{0.3cm}\%add2 = add nsw i32 \%add1, 2 \\
+\hspace*{0.3cm}ret i32 \%add2 \\
+\}
+\end{tcolorbox}
+
+This script checks if InstCombine (triggered by the -instcombine command-line option shown in the preceding snippet) simplifies two succeeding arithmetic adds into one. After putting this file into an arbitrary folder under llvm/test, the script will automatically be picked and run as part of the regression test when you're executing the llvm-lit command-line tool.
+
+Despite its convenience, this barely helps you use LIT in out-of-tree projects. Using LIT out-of-tree is especially useful when your project needs some end-to-end testing facilities, such as a format converter, a text processor, a linter, and, of course, a compiler. This section will show you how to bring LIT to your out-of-tree projects, and then provide you with a complete picture of the running flow of LIT.
+
+\subsubsubsection{3.2.1\hspace{0.2cm}Preparing for our example project}
+
+In this section, we will use an out-of-tree CMake project. This example project builds a command-line tool, js-minifier, that minifies arbitrary JavaScript code. We will transform the following JavaScript code:
+
+\begin{lstlisting}[style=styleCMake]
+const foo = (a, b) => {
+	let c = a + b;
+	console.log(`This is ${c}`);
+}
+\end{lstlisting}
+
+This will be transformed into some other semantic-equivalent code that is as short as possible:
+
+\begin{lstlisting}[style=styleCMake]
+const foo = (a,b) => {let c = a + b; console.log(`This is ${c}`);}
+\end{lstlisting}
+
+Instead of teaching you how to write this js-minifier, the goal of this section is to
+show you how to create a LIT testing environment to test this tool.
+
+The example project has the following folder structure:
+
+\begin{tcolorbox}[colback=white,colframe=black]
+\tt
+/JSMinifier \\
+\hspace*{0.5cm}|\_\_\_ CMakeLists.txt \\
+\hspace*{0.5cm}|\_\_\_ /src \\
+\hspace*{0.5cm}|\hspace{1cm}|\_\_\_ js-minifier.cpp \\
+\hspace*{0.5cm}|\hspace{1cm}|\_\_\_ /test \\
+\hspace*{0.5cm}|\hspace{1.5cm}|\_\_\_ test.js \\
+\hspace*{0.5cm}|\hspace{1.5cm}|\_\_\_ CMakeLists.txt \\
+\hspace*{0.5cm}|\_\_\_ /build
+\end{tcolorbox}
+
+The files under the /src folder contain the source code for js-minifier (which we are not going to cover here). What we will focus on here are the files that will be used for testing js-minifier, which sit under the /test folder (for now, there is only one file, test.js).
+
+In this section, we are going to set up a testing environment so that when we run llvmlit – the testing driver and main character of this section – under the CMake /build folder, it will print testing results, like this:
+
+\begin{tcblisting}{commandshell={}}
+$ cd build
+$ llvm-lit -sv .
+-- Testing: 1 tests, 1 workers –
+PASS: JSMinifier Test :: test.js (1 of 1)
+Testing Time: 0.03s
+  Expected Passes : 1
+\end{tcblisting}
+
+This shows how many and what test cases have passed.
+
+Here is the testing script, test.js:
+
+\begin{lstlisting}[style=styleCMake]
+// RUN: %jsm %s -o - | FileCheck
+// CHECK: const foo = (a,b) =>
+// CHECK-SAME: {let c = a + b; console.log(`This is ${c}`);}
+const foo = (a, b) => {
+	let c = a + b;
+	console.log(`This is ${c}`);
+}
+\end{lstlisting}
+
+As you can see, it is a simple testing process that runs the js-minifier tool – represented by the \%jsm directive, which will be replaced by the real path to js-minifier executable, as explained later – and checks the running result with FileCheck by using its CHECK and CHECK-SAME directives.
+
+With that, we've set up our example project. Before we wrap up the preparation, there is one final tool we need to create.
+
+Since we're trying to cut down on our reliance on the LLVM source tree, recreate the llvm-lit command-line tool using the LIT package available in the PyPi repository (that is, the pip command-line tool). All you need to do is install that package:
+
+\begin{tcblisting}{commandshell={}}
+$ pip install --user lit
+\end{tcblisting}
+
+Finally, wrap the package with the following script:
+
+\begin{lstlisting}[style=styleCMake]
+#!/usr/bin/env python
+from lit.main import main
+if __name__ == '__main__':
+	main()
+\end{lstlisting}
+
+Now, we can use LIT without building an LLVM tree! Next, we will create some LIT configuration scripts that will drive the whole testing flow.
+
+\subsubsubsection{3.2.2\hspace{0.2cm}Writing LIT configurations}
+
+In this subsection, we'll show you how to write LIT configuration scripts. These scripts describe the testing process – where the files will be tested, the testing environment (if we need to import any tool, for example), the policy when there is a failure, and so on. Learning these skills can greatly improve how you use LIT in places outside the LLVM tree. Let's get started:
+
+
+\subsubsubsection{3.2.3\hspace{0.2cm}LIT internals}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
