@@ -107,20 +107,136 @@ Now, we can use LIT without building an LLVM tree! Next, we will create some LIT
 
 In this subsection, we'll show you how to write LIT configuration scripts. These scripts describe the testing process – where the files will be tested, the testing environment (if we need to import any tool, for example), the policy when there is a failure, and so on. Learning these skills can greatly improve how you use LIT in places outside the LLVM tree. Let's get started:
 
+\begin{enumerate}
+\item Inside the /JSMinifier/test folder, create a file called lit.cfg.py that contains the following content:
+
+\begin{lstlisting}[style=stylePython]
+import lit.formats
+
+config.name = 'JSMinifier Test'
+config.test_format = lit.formats.ShTest(True)
+config.suffixes = ['.js']
+\end{lstlisting}
+
+Here, the snippet is providing LIT with some information. The config variable here is a Python object that will be populated later when this script is loaded into LIT's runtime. It's basically a registry with predefined fields that carry configuration values, along with custom fields that can be added by lit.*.py scripts at any time.
+
+The config.test\_format field suggests that LIT will run every test inside a shell environment (in the ShTest format), while the config.suffixes field suggests that only files with .js in their filename suffix will be treated as test cases (that is, all the JavaScript files).
+
+\item Following on from the code snippet in the previous step, LIT now needs two other pieces of information: the root path to the test files and the working directory:
+
+\begin{lstlisting}[style=stylePython]
+…
+config.suffixes = ['.js']
+config.test_source_root = os.path.dirname(__file__)
+config.test_exec_root = os.path.join(config.my_obj_root,
+'test')
+\end{lstlisting}
+
+For config.test\_source\_root, it's simply pointing to /JSMinifier/test. On the other hand, config.test\_exec\_root, which is the working directory, is pointing to a place whose parent folder is the value of a custom configuration field, my\_obj\_root. While it will be introduced later, simply put, it points to the build folder path. In other words, config.test\_exec\_root will eventually have a value of /JSMinifier/build/test.
+
+\item The \%jsm directive we saw earlier in test.js is used as a placeholder that will eventually be replaced with the real/absolute path of the js-minifier executable. The following lines will set up the replacements:
+
+\begin{lstlisting}[style=stylePython]
+…
+config.test_exec_root = os.path.join(config.my_obj_root, 'test')
+
+config.substitutions.append(('%jsm',
+os.path.join(config.my_obj_root, 'js-minifier')))
+\end{lstlisting}
+
+This code adds a new entry to the config.substitutions field, which makes LIT replace every \%jsm occurrence in the test files with the /JSMinifier/ build/js-minifier value. This wraps up all the content in lit.cfg.py.
+
+\item Now, create a new file called lit.site.cfg.py.in and put it under the /JSMinifier/test folder. The first part of this file looks like this:
+
+\begin{lstlisting}[style=stylePython]
+import os
+config.my_src_root = r'@CMAKE_SOURCE_DIR@'
+config.my_obj_root = r'@CMAKE_BINARY_DIR@'
+\end{lstlisting}
+
+The mystery config.my\_obj\_root field is finally resolved here, but instead of pointing to a normal string, it is assigned to a weird value called @CMAKE\_BINARY\_DIR@. Again, this will be replaced by CMake with the real path later. The same goes for the config.my\_src\_root field.
+
+\item Finally, lit.site.cfg.py.in is wrapped up by these lines:
+
+\begin{lstlisting}[style=stylePython]
+…
+lit_config.load_configure(
+	config, os.path.join(config.my_src_root, 'test/
+		lit.cfg.py'))
+\end{lstlisting}
+
+Even though this snippet is pretty simple, it's a little hard to understand. Simply put, this file will eventually be materialized into another file, with all the variables clamped by @ being resolved and copied into the build folder. From there, it will call back the lit.cfg.py script we saw in the earlier steps. This will be explained later in this section.
+
+\item Finally, it's time to replace those weird @-clamped strings with real values using CMake's configure\_file function. In /JSMinifier/test/CMakeLists.txt, add the following line somewhere inside the file:
+
+\begin{lstlisting}[style=styleCMake]
+configure_file(lit.site.cfg.py.in
+lit.site.cfg.py @ONLY)
+\end{lstlisting}
+
+The configure\_file function will replace all the @-clamped string occurrences in the input file (lit.site.cfg.py.in, in this case) with their CMake variable counterparts in the current CMake context.
+
+For example, let's say there is a file called demo.txt.in that contains the following content:
+
+\begin{lstlisting}[style=styleCMake]
+name = "@FOO@"
+age = @AGE@
+\end{lstlisting}
+
+Now, let's use configure\_file in CMakeLists.txt:
+
+\begin{lstlisting}[style=styleCMake]
+set(FOO "John Smith")
+set(AGE 87)
+configure_file(demo.txt.in
+			   demo.txt @ONLY)
+\end{lstlisting}
+
+Here, the aforementioned replacement will kick in and generate an output file, demo.txt, that contains the following content:
+
+\begin{lstlisting}[style=styleCMake]
+name = "John Smith"
+age = 87
+\end{lstlisting}
+
+\item Back to the lit.site.cfg.py.in snippets, since CMAKE\_SOURCE\_DIR and CMAKE\_BINARY\_DIR are always available, they point to the root source folder and the build folder, respectively. The resulting /JSMinifier/build/test/lit. site.cfg.py will contain the following content:
+
+\begin{lstlisting}[style=stylePython]
+import os
+config.my_src_root = r'/absolute/path/to/JSMinifier'
+config.my_obj_root = r'/absolute/path/to/JSMinifier/
+build'
+
+lit_config.load_config(
+	config, os.path.join(config.my_src_root, 'test/
+		lit.cfg.py'))
+\end{lstlisting}
+
+\end{enumerate}
+
+With that, we have learned how to write LIT configuration scripts for our example project. Now, it is time to explain some details of how LIT works internally, and why we need so many files (lit.cfg.py, lit.site.cfg.py.in, and lit.site.cfg.py).
 
 \subsubsubsection{3.2.3\hspace{0.2cm}LIT internals}
 
+Let's look at the following diagram, which illustrates the workflow of running LIT tests in the demo project we just created:
 
+\hspace*{\fill} \\ %插入空行
+\begin{center}
+\includegraphics[width=0.8\textwidth]{content/1/chapter3/images/1.jpg}\\
+Figure 3.1 – The forking flow of LIT in our example project
+\end{center}
 
+Let's take a look at this diagram in more detail:
 
+\begin{enumerate}
+\item lit.site.cfg.py.in is copied to /JSMinifier/build/lit.site.cfg.py, which carries some CMake variable values.
+\item The llvm-lit command is launched inside /JSMinifier/build. It will execute lit.site.cfg.py first.
+\item lit.site.cfg.py then uses the load\_configure Python function to load the main LIT configurations (lit.cfg.py) and run all the test cases.
+\end{enumerate}
 
+The most crucial part of this diagram is explaining the roles of lit.site.cfg.py and lit.site.cfg.py.in: many parameters, such as the absolute path to the build folder, will remain unknown until the CMake configuration process is complete. So, a trampoline script – that is, lit.site.cfg.py – is placed inside the build folder to relay that information to the real test runner.
 
-
-
-
-
-
-
+In this section, we learned how to write LIT configuration scripts for our out-of-tree example project. We also learned how LIT works under the hood. Knowing this can help you use LIT in a wide variety of projects, in addition to LLVM. In the next section, we will focus on FileCheck, a crucial and commonly used LIT utility that performs advanced pattern checking.
 
 
 
