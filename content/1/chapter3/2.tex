@@ -23,7 +23,7 @@ Despite its convenience, this barely helps you use LIT in out-of-tree projects. 
 
 In this section, we will use an out-of-tree CMake project. This example project builds a command-line tool, js-minifier, that minifies arbitrary JavaScript code. We will transform the following JavaScript code:
 
-\begin{lstlisting}[style=styleCMake]
+\begin{lstlisting}[style=styleJavaScript]
 const foo = (a, b) => {
 	let c = a + b;
 	console.log(`This is ${c}`);
@@ -32,7 +32,7 @@ const foo = (a, b) => {
 
 This will be transformed into some other semantic-equivalent code that is as short as possible:
 
-\begin{lstlisting}[style=styleCMake]
+\begin{lstlisting}[style=styleJavaScript]
 const foo = (a,b) => {let c = a + b; console.log(`This is ${c}`);}
 \end{lstlisting}
 
@@ -71,7 +71,7 @@ This shows how many and what test cases have passed.
 
 Here is the testing script, test.js:
 
-\begin{lstlisting}[style=styleCXX]
+\begin{lstlisting}[style=styleJavaScript]
 // RUN: %jsm %s -o - | FileCheck
 
 // CHECK: const foo = (a,b) =>

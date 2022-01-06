@@ -200,6 +200,33 @@
 	morestring=[d]',
 }
 
+\lstdefinestyle{styleCMake}{
+	language=CMake,
+	backgroundcolor=\color{blue!3!white}, 
+	basicstyle      =   \zihao{-5}\ttfamily,
+	numberstyle     =   \zihao{-5}\ttfamily,
+	breakatwhitespace = false,
+	breaklines = true,
+	captionpos = b,
+	commentstyle = \color{mygray}\bfseries, 
+	extendedchars =false,             
+	frame=shadowbox, 
+	tabsize=2,
+	framerule=0.5pt,
+	keepspaces=true,
+	keywordstyle=\color{blue}\bfseries, % keyword style
+	otherkeywords={string}, 
+	rulecolor=\color{black},
+	showspaces=false,
+	showstringspaces=false,
+	showtabs=false,
+	columns         =   fixed,
+	stepnumber=1,
+	stringstyle=\color{purple},        % string literal style
+	flexiblecolumns,  
+}
+
+
 \lstdefinestyle{stylePython}{
 	language        =   Python, % 语言选Python
 	backgroundcolor=\color{blue!3!white}, 
@@ -255,12 +282,21 @@
 	%stepnumber=1,         
 	stringstyle=\color{mymauve},        % string literal style
 	tabsize=2,          
-	%title=\lstname   
+	columns         =   fixed,
 	flexiblecolumns,                   
 }
 
-\lstdefinestyle{styleCMake}{
-	language=CMake,
+
+\lstdefinelanguage{JavaScript}{
+	morekeywords={typeof, new, true, false, catch, function, return, null, catch, switch, var, if, in, while, do, else, case, break, const, console, let},
+	morecomment=[s]{/*}{*/},
+	morecomment=[l]//,
+	morestring=[b]",
+	morestring=[b]'
+}
+
+\lstdefinestyle{styleJavaScript}{
+	language=JavaScript,
 	backgroundcolor=\color{blue!3!white}, 
 	basicstyle      =   \zihao{-5}\ttfamily,
 	numberstyle     =   \zihao{-5}\ttfamily,
@@ -279,19 +315,24 @@
 	showspaces=false,
 	showstringspaces=false,
 	showtabs=false,
+	columns         =   fixed,
 	stepnumber=1,
 	stringstyle=\color{purple},        % string literal style
 	flexiblecolumns,  
 }
+
 
 \tcbset{
 	commandshell/.style={
 		listing only,
 		colback=black!75!white,
 		colupper=white,
+		lowerbox=ignored,
 		listing options={
 			language={bash},
 			basicstyle=\ttfamily,
+			columns = fixed,
+			flexiblecolumns
 		}
 }}
 
