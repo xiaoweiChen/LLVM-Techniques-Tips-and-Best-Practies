@@ -2,6 +2,7 @@ Writing an in-tree LLVM IR regression test is pretty easy: all you need to do is
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
+\zihao{-5}
 ; RUN: opt < \%s -instcombine -S -o - | FileCheck \%s \\
 target triple = "x86\_64-unknown-linux" \\
 define i32 @foo(i32 \%c) \{ \\
@@ -42,14 +43,15 @@ The example project has the following folder structure:
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
+\zihao{-5}
 /JSMinifier \\
-\hspace*{0.5cm}|\_\_\_ CMakeLists.txt \\
-\hspace*{0.5cm}|\_\_\_ /src \\
-\hspace*{0.5cm}|\hspace{1cm}|\_\_\_ js-minifier.cpp \\
-\hspace*{0.5cm}|\hspace{1cm}|\_\_\_ /test \\
-\hspace*{0.5cm}|\hspace{1.5cm}|\_\_\_ test.js \\
-\hspace*{0.5cm}|\hspace{1.5cm}|\_\_\_ CMakeLists.txt \\
-\hspace*{0.5cm}|\_\_\_ /build
+\hspace*{0.3cm}|\_\_\_ CMakeLists.txt \\
+\hspace*{0.3cm}|\_\_\_ /src \\
+\hspace*{0.3cm}|\hspace{1cm}|\_\_\_ js-minifier.cpp \\
+\hspace*{0.3cm}|\hspace{1cm}|\_\_\_ /test \\
+\hspace*{0.3cm}|\hspace{2.3cm}|\_\_\_ test.js \\
+\hspace*{0.3cm}|\hspace{2.3cm}|\_\_\_ CMakeLists.txt \\
+\hspace*{0.3cm}|\_\_\_ /build
 \end{tcolorbox}
 
 The files under the /src folder contain the source code for js-minifier (which we are not going to cover here). What we will focus on here are the files that will be used for testing js-minifier, which sit under the /test folder (for now, there is only one file, test.js).
@@ -69,8 +71,9 @@ This shows how many and what test cases have passed.
 
 Here is the testing script, test.js:
 
-\begin{lstlisting}[style=styleCMake]
+\begin{lstlisting}[style=styleCXX]
 // RUN: %jsm %s -o - | FileCheck
+
 // CHECK: const foo = (a,b) =>
 // CHECK-SAME: {let c = a + b; console.log(`This is ${c}`);}
 const foo = (a, b) => {
@@ -79,7 +82,7 @@ const foo = (a, b) => {
 }
 \end{lstlisting}
 
-As you can see, it is a simple testing process that runs the js-minifier tool – represented by the \%jsm directive, which will be replaced by the real path to js-minifier executable, as explained later – and checks the running result with FileCheck by using its CHECK and CHECK-SAME directives.
+As you can see, it is a simple testing process that runs the js-minifier tool – represented by the \texttt{\%jsm} directive, which will be replaced by the real path to js-minifier executable, as explained later – and checks the running result with FileCheck by using its CHECK and CHECK-SAME directives.
 
 With that, we've set up our example project. Before we wrap up the preparation, there is one final tool we need to create.
 
@@ -91,7 +94,7 @@ $ pip install --user lit
 
 Finally, wrap the package with the following script:
 
-\begin{lstlisting}[style=styleCMake]
+\begin{lstlisting}[style=stylePython]
 #!/usr/bin/env python
 from lit.main import main
 if __name__ == '__main__':

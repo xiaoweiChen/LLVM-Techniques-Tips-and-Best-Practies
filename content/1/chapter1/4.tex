@@ -19,7 +19,7 @@ $ cd llvm/utils/gn
 $ ./get.py
 \end{tcblisting}
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, title=使用特定版本的GN]
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=使用特定版本的GN]
 \hspace*{0.7cm}如果希望使用自定义GN可执行文件，而不是get.py获取的可执行文件，只需将特定版本的GN放入系统的PATH中。如果您想知道还有哪些其他GN版本可用，您可以在\url{https://dev.chromium.org/developers/how-tos/install-depot-tools}查看关于安装depot\_tools的信息。
 \end{tcolorbox}
 
@@ -56,6 +56,7 @@ $ ./gn.py args out/x64.release
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
+\zihao{-5}
 \# Inside args.gn \\
 is\_debug = true \\
 llvm\_targets\_to\_build = ["X86", "AArch64"]

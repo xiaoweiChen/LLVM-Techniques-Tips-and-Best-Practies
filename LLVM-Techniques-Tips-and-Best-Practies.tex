@@ -192,6 +192,7 @@
 		qt5\_create\_translation,
 		compile\_definitions,
 		add\_llvm\_component\_library,
+		add\_llvm\_tool,
 	}, %定义关键字
 	sensitive=false, %是否大小写敏感
 	morecomment=[l]{\#},
@@ -199,40 +200,70 @@
 	morestring=[d]',
 }
 
+\lstdefinestyle{stylePython}{
+	language        =   Python, % 语言选Python
+	backgroundcolor=\color{blue!3!white}, 
+	basicstyle      =   \zihao{-5}\ttfamily,
+	numberstyle     =   \zihao{-5}\ttfamily,
+	keywordstyle    =   \color{blue},
+	keywordstyle    =   [2] \color{teal},
+	stringstyle     =   \color{magenta},
+	commentstyle    =   \color{red}\ttfamily,
+	frame = shadowbox, 
+	breaklines      =   true,   % 自动换行，建议不要写太长的行
+	columns         =   fixed,  % 如果不加这一句，字间距就不固定，很丑，必须加
+	basewidth       =   0.5em,
+	%basicstyle          =   \sffamily,          % 基本代码风格
+	%keywordstyle        =   \bfseries,          % 关键字风格
+	%commentstyle        =   \rmfamily\itshape,  % 注释的风格，斜体
+	%stringstyle         =   \ttfamily,  % 字符串风格
+	flexiblecolumns,                % 别问为什么，加上这个
+	numbers             =   left,   % 行号的位置在左边
+	showspaces          =   false,  % 是否显示空格，显示了有点乱，所以不现实了
+	numberstyle         =   \zihao{-5}\ttfamily,    % 行号的样式，小五号，tt等宽字体
+	showstringspaces    =   false,
+	captionpos          =   t,      % 这段代码的名字所呈现的位置，t指的是top上面
+	frame               =   lrtb,   % 显示边框
+	tabsize=2,  
+}
 
 \lstdefinestyle{styleCXX}{
+	language = C++,  
 	backgroundcolor=\color{blue!3!white}, 
 	%basicstyle = \footnotesize,  
-	basicstyle=\tt,     
-	breakatwhitespace = false,        
+	basicstyle      =   \zihao{-5}\ttfamily,
+	numberstyle     =   \zihao{-5}\ttfamily,   
+	%breakatwhitespace = false,    
+	basewidth       =   0.5em,    
 	breaklines = true,                 
 	captionpos = b,                    
 	commentstyle = \color{mygreen}\bfseries,
-	extendedchars = false,             
+	%extendedchars = false,             
 	frame =shadowbox, 
 	framerule=0.5pt,
 	%frameround = fttt,
 	keepspaces=true,
 	keywordstyle=\color{blue}\bfseries, % keyword style
-	language = C++,                     % the language of code
 	otherkeywords={string}, 
 	numbers=left, 
 	numbersep=5pt,
 	numberstyle=\tiny\color{mygray},
 	rulecolor=\color{black},         
-	showspaces=false,  
-	showstringspaces=false, 
-	showtabs=false,    
-	stepnumber=1,         
+	%showspaces=false,  
+	%showstringspaces=false, 
+	%showtabs=false,    
+	%stepnumber=1,         
 	stringstyle=\color{mymauve},        % string literal style
 	tabsize=2,          
-	title=\lstname                      
+	%title=\lstname   
+	flexiblecolumns,                   
 }
 
 \lstdefinestyle{styleCMake}{
 	language=CMake,
 	backgroundcolor=\color{blue!3!white}, 
-	basicstyle=\tt, 
+	basicstyle      =   \zihao{-5}\ttfamily,
+	numberstyle     =   \zihao{-5}\ttfamily,
 	breakatwhitespace = false,
 	breaklines = true,
 	captionpos = b,
@@ -250,15 +281,16 @@
 	showtabs=false,
 	stepnumber=1,
 	stringstyle=\color{purple},        % string literal style
+	flexiblecolumns,  
 }
-
 
 \tcbset{
 	commandshell/.style={
 		listing only,
-		colback=black,
+		colback=black!75!white,
 		colupper=white,
-		listing options={language={bash},
+		listing options={
+			language={bash},
 			basicstyle=\ttfamily,
 		}
 }}

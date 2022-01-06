@@ -88,6 +88,7 @@ Many LLVM custom CMake functions have a pitfall that involves source file detect
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
+\zihao{-5}
 /FancyOpt \\
 \hspace*{0.5cm}|\_\_\_ FancyOpt.cpp \\
 \hspace*{0.5cm}|\_\_\_ AggressiveFancyOpt.cpp \\
@@ -161,7 +162,7 @@ The LINK\_COMPONENTS, LINK\_LIBS, and DEPENDS arguments are also available here,
 
 These are some of the most common and important LLVM-specific CMake directives. Using these directives can not only make your CMake code more concise but also help synchronize it with LLVM's own build system, in case you want to do some in-tree development. In the next section, we will show you how to integrate LLVM into an out-oftree CMake project, and leverage the knowledge we learned in this chapter.
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, title=In-tree versus out-of-tree development]
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=In-tree versus out-of-tree development]
 \hspace*{0.7cm}In this book, in-tree development means contributing code directly to the LLVM project, such as fixing LLVM bugs or adding new features to the existing LLVM libraries. Out-of-tree development, on the other hand, either represents creating extensions for LLVM (writing an LLVM pass, for example) or using LLVM libraries in some other projects (using LLVM's code generation libraries to implement your own programming language, for example).
 \end{tcolorbox}
 
