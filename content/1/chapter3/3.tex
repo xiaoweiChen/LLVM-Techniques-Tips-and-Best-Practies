@@ -1,0 +1,298 @@
+
+FileCheck is an advanced pattern checker that originates from LLVM. It has a similar role as the grep command-line tool available in Unix/Linux systems, but provides a more powerful yet straightforward syntax for line-based contexts. Furthermore, the fact that
+you can put FileCheck directives beside the testing targets makes the test cases selfcontained and easy to understand.
+
+Though basic FileCheck syntax is easy to get hands-on with, there are many other FileCheck functionalities that truly unleash the power of FileCheck and greatly improve your testing experiences – creating more concise testing scripts and parsing more complex program output, to name a few. This section will show you some of those skills.
+
+\subsubsubsection{3.3.1\hspace{0.2cm}Preparing for our example project}
+
+The FileCheck command-line tool needs to be built first. Similar to the previous section, building one of the check-XXX (phony) targets in the LLVM tree is the easiest way to do so. The following is an example of this:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja check-llvm-support
+\end{tcblisting}
+
+In this section, we are going to use an imaginary command-line tool called js-obfuscator, a JavaScript obfuscator, for our example. Obfuscation is a common technique that's used to hide intellectual properties or enforce security protections. For example, we could use a real-world JavaScript obfuscator on the following JavaScript code:
+
+\begin{lstlisting}[style=styleJavaScript]
+const onLoginPOST = (req, resp) => {
+	if(req.name == 'admin')
+		resp.send('OK');
+	else
+		resp.sendError(403);
+}
+myReset.post('/console', onLoginPOST);
+\end{lstlisting}
+
+This would transform it into the following code:
+
+\begin{lstlisting}[style=styleJavaScript]
+const t = "nikfmnsdzaO";
+const aaa = (a, b) => {
+	if(a.z[0] == t[9] && a.z[1] == t[7] &&…)
+		b.f0(t[10] + t[2].toUpperCase());
+	else
+		b.f1(0x193);
+}
+G.f4(YYY, aaa);
+\end{lstlisting}
+
+This tool will try to make the original script as human-unreadable as possible. The challenge for the testing part is to verify its correctness while still reserving enough space for randomness. Simply put, js-obfuscator will only apply four obfuscation rules:
+
+\begin{enumerate}
+\item Only obfuscate local variable names, including formal parameters. The formal parameter names should always be obfuscated in <lower case word><argument index number> format. The local variable names will always be obfuscated into a combination of lowercase and uppercase letters.
+
+\item If we are declaring functions with the arrow syntax – for example, let foo = (arg1, arg2) => \{…\} – the arrow and the left curly brace (=> \{) need to be put in the next line.
+	
+\item Replace a literal number with the same value but in a different representation; for example, replacing 87 with 0x57 or 87.000.
+
+\item When you supply the tool with the -\,-shuffle-funcs command-line option, shuffle the declaration/appearing order of the top-level functions.
+
+\end{enumerate}
+
+Finally, the following JavaScript code is the example to be used with the js-obfuscator tool:
+
+\begin{lstlisting}[style=styleJavaScript]
+const square = x => x * x;
+const cube = x => x * x * x;
+const my_func1 = (input1, input2, input3) => {
+	// TODO: Check if the arrow and curly brace are in the second
+	// line
+	// TODO: Check if local variable and parameter names are
+	// obfuscated
+	let intermediate = square(input3);
+	let output = input1 + intermediate - input2;
+	return output;
+}
+const my_func2 = (factor1, factor2) => {
+	// TODO: Check if local variable and parameter names are
+	// obfuscated
+	let term2 = cube(factor1);
+	// TODO: Check if literal numbers are obfuscated
+	return my_func1(94, term2, factor2);
+}
+console.log(my_func2(1,2));
+\end{lstlisting}
+
+\subsubsubsection{3.3.2\hspace{0.2cm}Writing FileCheck directives}
+
+The following steps are going to fill in all the TODO comments that appeared in the preceding code:
+
+\begin{enumerate}
+\item Going according to the line number, the first task is to check whether the local variables and parameters have been obfuscated properly. According to the spec, formal parameters have special renaming rules (that is, <lower case word><argument index number>), so using the normal CHECK directive with FileCheck's own regex syntax will be the most suitable solution here:
+
+\begin{lstlisting}[style=styleJavaScript]
+// CHECK: my_func1 = ({{[a-z]+0}}, {{[a-z]+1}},
+// {{[a-z]+2}})
+const my_func1 = (input1, input2, input3) => {
+…
+\end{lstlisting}
+
+FileCheck uses a subset of regular expressions for pattern matching, which are enclosed by either \{\{…\}\} or [[…]] symbols. We will cover the latter one shortly.
+
+\item This code looks pretty straightforward. However, the semantics of the code also need to be correct once obfuscation has been performed. So, in addition to checking the format, the succeeding references to those parameters need to be refactored as well, which is where FileCheck's pattern binding comes in:
+
+\begin{lstlisting}[style=styleJavaScript]
+// CHECK: my_func1 = ([[A0:[a-z]+0]],
+// [[A1:[a-z]+1]], [[A2:[a-z]+2]])
+const my_func1 = (input1, input2, input3) => {
+	// CHECK: square([[A2]])
+	let intermediate = square(input3);
+…
+\end{lstlisting}
+
+This code binds the pattern of the formal parameters with the names A0 ~ A2 using the [[…]] syntax, in which the binding variable name and the pattern are divided by a colon: [[<binding variable>:<pattern>]]. On the reference sites of the binding variable, the same [[…]] syntax is used, but without the pattern part.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
+\hspace*{0.7cm}A binding variable can have multiple definition sites. Its reference sites will read the last defined value.
+\end{tcolorbox}
+
+\item Let's not forget the second rule – the arrow and left curly brace of the function header need to be put in the second line. To implement the concept of "the line after," we can use the CHECK-NEXT directive:
+
+\begin{lstlisting}[style=styleJavaScript]
+// CHECK: my_func1 = ([[A0:[a-z]+0]],
+// [[A1:[a-z]+1]], [[A2:[a-z]+2]])
+const my_func1 = (input1, input2, input3) => {
+	// CHECK-NEXT: => {
+\end{lstlisting}
+
+Compared to the original CHECK directive, CHECK-NEXT will not only check if the pattern exists but also ensure that the pattern is in the line that follows the line matched by the previous directive.
+
+\item Next, all the local variables and formal parameters are checked in my\_func1:
+
+\begin{lstlisting}[style=styleJavaScript]
+// CHECK: my_func1 = ([[A0:[a-z]+0]],
+// [[A1:[a-z]+1]], [[A2:[a-z]+2]])
+const my_func1 = (input1, input2, input3) => {
+	// CHECK: let [[IM:[a-zA-Z]+]] = square([[A2]]);
+	let intermediate = square(input3);
+	// CHECK: let [[OUT:[a-zA-Z]+]] =
+	// CHECK-SAME: [[A0]] + [[IM]] - [[A1]];
+	let output = input1 + intermediate - input2;
+	// CHECK: return [[OUT]];
+	return output;
+}
+\end{lstlisting}
+
+As highlighted in the preceding code, the CHECK-SAME directive was used to match the succeeding pattern in the exact same line. The rationale behind this is that FileCheck expected different CHECK directives to be matched in different lines. So, let's say part of the snippet was written like this:
+
+\begin{lstlisting}[style=styleJavaScript]
+// CHECK: let [[OUT:[a-zA-Z]+]] =
+// CHECK: [[A0]] + [[IM]] - [[A1]];
+\end{lstlisting}
+
+It will only match code that spread across two lines or more, as shown here:
+
+\begin{lstlisting}[style=styleJavaScript]
+let BGHr =
+	r0 + jkF + r1;
+\end{lstlisting}
+
+It will throw an error otherwise. This directive is especially useful if you wish to avoid writing a super long line of checking statements, thus making the testing scripts more concise and readable.
+
+\item Going into my\_func2, now, it's time to check if the literal numbers have been obfuscated properly. The checking statement here is designed to accept any instances/patterns except the original numbers. Therefore, the CHECK-NOT directive will be sufficient here:
+
+\begin{lstlisting}[style=styleJavaScript]
+…
+// CHECK: return my_func1(
+// CHECK-NOT: 94
+return my_func1(94,
+				term2, factor2);
+\end{lstlisting}
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
+\hspace*{0.7cm}The first CHECK directive is required. This is because CHECK-NOT will not move the cursor from the line before return my\_func1(94. Here, CHECK-NOT will give a false negative without a CHECK directive to move the cursor to the correct line first.
+\end{tcolorbox}
+
+In addition, CHECK-NOT is pretty useful to express the concept of not <a specific pattern>…but <the correct pattern> when it's used with CHECK-SAME, as we mentioned earlier.
+
+For example, if the obfuscation rule states that all the literal numbers need to be obfuscated into their hexadecimal counterparts, then you can express the assertion of don't want to see 94… but want to see 0x5E/0x5e at the same place instead using the following code:
+
+\begin{lstlisting}[style=styleJavaScript]
+…
+// CHECK: return my_func1
+// CHECK-NOT: 94,
+// CHECK-SAME: {{0x5[eE]}}
+return my_func1(94,
+				term2, factor2);
+\end{lstlisting}
+
+\item Now, only one obfuscation rule needs to be verified: when the js-obfuscator tool is supplied with an additional command-line option, -\,-shuffle-funcs, which effectively shuffles all top-level functions, we need to check whether the top-level functions maintain certain ordering, even after they have been shuffled. In JavaScript, functions are resolved when they're called. This means that cube, square, my\_func1, and my\_func2 can have an arbitrary ordering, as long as they're placed before the console.log(…) statement. To express this kind of flexibility, the CHECK-DAG directive can be pretty useful.
+
+Adjacent CHECK-DAG directives will match texts in arbitrary orders. For example, let's say we have the following directives:
+
+\begin{lstlisting}[style=styleJavaScript]
+// CHECK-DAG: 123
+// CHECK-DAG: 456
+\end{lstlisting}
+
+These directives will match the following content:
+
+\begin{lstlisting}[style=styleJavaScript]
+123
+456
+\end{lstlisting}
+
+They will also match the following content:
+
+\begin{lstlisting}[style=styleJavaScript]
+456
+123
+\end{lstlisting}
+
+However, this freedom of ordering will not hold across either a CHECK or CHECKNOT directive. For example, let's say we have these directives:
+
+\begin{lstlisting}[style=styleJavaScript]
+// CHECK-DAG: 123
+// CHECK-DAG: 456
+// CHECK: 789
+// CHECK-DAG: abc
+// CHECK-DAG: def
+\end{lstlisting}
+
+These directives will match the following text:
+
+\begin{lstlisting}[style=styleJavaScript]
+456
+123
+789
+def
+abc
+\end{lstlisting}
+
+However, they will not match the following text:
+
+\begin{lstlisting}[style=styleJavaScript]
+456
+789
+123
+def
+abc
+\end{lstlisting}
+
+\item Back to our motivated example, the obfuscation rule can be checked by using the following code:
+
+\begin{lstlisting}[style=styleJavaScript]
+…
+// CHECK-DAG: const square =
+// CHECK-DAG: const cube =
+// CHECK-DAG: const my_func1 =
+// CHECK-DAG: const my_func2 =
+// CHECK: console.log
+console.log(my_func2(1,2));
+\end{lstlisting}
+
+However, function shuffling will only happen if an additional command-line option is supplied to the tool. Fortunately, FileCheck provides a way to multiplex different check suites into a single file, where each suite can define how it runs and separates the checks from other suites.
+
+\item The idea of the check prefix in FileCheck is pretty simple: you can create a check suite that runs independently with other suites. Instead of using the CHECK string, each suite will replace it with another string in all the directives mentioned earlier (CHECK-NOT and CHECK-SAME, to name a few), including CHECK itself, in order to distinguish it from other suites in the same file. For example, you can create a suite with the YOLO prefix so that that part of the example now looks as follows:
+
+\begin{lstlisting}[style=styleJavaScript]
+// YOLO: my_func2 = ([[A0:[a-z]+0]], [[A1:[a-z]+1]])
+const my_func2 = (factor1, factor2) => {
+…
+// YOLO-NOT: return my_func1(94,
+// YOLO-SAME: return my_func1({{0x5[eE]}},
+return my_func1(94,
+				term2, factor2);
+…
+\end{lstlisting}
+
+To use a custom prefix, it needs to be specified in the -\,-check-prefix command-line option. Here, the FileCheck command invocation will look like this:
+
+\begin{tcblisting}{commandshell={}}
+$ cat test.out.js | FileCheck --check-prefix=YOLO test.js
+\end{tcblisting}
+
+\item Finally, let's go back to our example. The last obfuscation rule can be solved by using an alternative prefix for those CHECK-DAG directives:
+
+\begin{lstlisting}[style=styleJavaScript]
+…
+// CHECK-SHUFFLE-DAG: const square =
+// CHECK-SHUFFLE-DAG: const cube =
+// CHECK-SHUFFLE-DAG: const my_func1 =
+// CHECK-SHUFFLE-DAG: const my_func2 =
+// CHECK-SHUFFLE: console.log
+console.log(my_func2(1,2));
+\end{lstlisting}
+
+\end{enumerate}
+This must be combined with the default check suite.  All the checks mentioned in this section can be run in two separate commands, as follows:
+
+\begin{tcblisting}{commandshell={}}
+# Running the default check suite
+$ js-obfuscator test.js | FileCheck test.js
+# Running check suite for the function shuffling option
+$ js-obfuscator --shuffle-funcs test.js | \
+    FileCheck --check-prefix=CHECK-SHUFFLE test.js
+\end{tcblisting}
+
+In this section, we have shown some advanced and useful FileCheck skills through our example project. These skills provide you with different ways to write validation patterns and make your LIT test script more concise.
+
+So far, we have been talking about the testing methodology, which runs tests in a shelllike environment (that is, in the ShTest LIT format). In the next section, we are going to introduce an alternative LIT framework – the TestSuite framework and testing format that was originated from the llvm-test-suite project – which provides a different kind of useful testing methodology for LIT.
+
+
+
+
+
+
+

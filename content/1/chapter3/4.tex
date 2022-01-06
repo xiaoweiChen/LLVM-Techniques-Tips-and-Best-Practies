@@ -1,0 +1,152 @@
+
+In the previous sections, we learned how regression tests were performed in LLVM. More specifically, we looked at the ShTest testing format (recalling the config. test\_format = lit.formats.ShTest(…) line), which basically runs end-to-end tests in a shell script fashion. The ShTest format provides more flexibility when it comes to validating results since it can use the FileCheck tool we introduced in the previous section, for example.
+
+This section is going to introduce another kind of testing format: TestSuite. The TestSuite format is part of the llvm-test-suite project – a collection of test suites and benchmarks created for testing and benchmarking LLVM. Similar to ShTest, this LIT format is also designed to run end-to-end tests. However, TestSuite aims to make developers' lives easier when they want to integrate existing executable-based test suites or benchmark codebases. For example, if you want to use the famous SPEC benchmark as one of your test suites, all you need to do is add a build description and the expected output in plain text. This is also useful when your testing logic cannot be expressed using a textual testing script, as we saw in previous sections.
+
+In this section, we will learn how to import an existing test suite or benchmark codebase into the llvm-test-suite project.
+
+\subsubsubsection{3.4.1\hspace{0.2cm}Preparing for our example project}
+
+First, please follow the instructions at the beginning of this chapter to build llvm-testsuite.
+
+The rest of the section is going to use a pseudo test suite project called GeoDistance. The GeoDistance project uses C++ and a GNU Makefile to build a command-line tool, geo-distance, that calculates and prints out the total distance of a path constructed by a list of latitude and longitude pairs provided by the input file.
+
+It should have the following folder structure:
+
+\begin{tcolorbox}[colback=white,colframe=black]
+\tt
+GeoDistance \\
+\hspace*{0.5cm}|\_\_\_ helper.cpp \\
+\hspace*{0.5cm}|\_\_\_ main.cpp \\
+\hspace*{0.5cm}|\_\_\_ sample\_input.txt \\
+\hspace*{0.5cm}|\_\_\_Makefile 
+\end{tcolorbox}
+
+Here, the Makefile looks like this:
+
+\begin{lstlisting}[style=styleJavaScript]
+FLAGS := -DSMALL_INPUT -ffast-math
+EXE := geo-distance
+OBJS := helper.o main.o
+
+%.o: %.cpp
+	$(CXX) $(FLAGS) -c $^
+$(EXE): $(OBJS)
+	$(CXX) $(FLAGS) $< -o $@
+\end{lstlisting}
+
+To run the geo-distance command-line tool, use the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ geo-distance ./sample_input.txt
+\end{tcblisting}
+
+This prints out the floating-point distance to stdout:
+
+\begin{tcblisting}{commandshell={}}
+$ geo-distance ./sample_input.txt
+94.873467
+\end{tcblisting}
+
+The floating-point precision requirement here is 0.001.
+
+\subsubsubsection{3.4.2\hspace{0.2cm}Importing code into llvm-test-suite}
+
+Basically, there are only two things we need to do to import existing test suites or benchmarks into llvm-test-suite:
+
+\begin{itemize}
+\item Use CMake as the build system
+\item Compose verification rules
+\end{itemize}
+
+To use CMake as the build system, the project folder needs to be put under the MultiSource/Applications subdirectory inside the llvm-test-suite source tree. Then, we need to update the enclosing CMakeLists.txt accordingly:
+
+\begin{lstlisting}[style=styleCMake]
+# Inside MultiSource/Applications/CMakeLists.txt
+…
+add_subdirectory(GeoDistance)
+\end{lstlisting}
+
+To migrate from our GNU Makefile to CMakeLists.txt, instead of rewriting it using the built-in CMake directives such as add\_executable, LLVM provides some handy functions and macros for you:
+
+\begin{lstlisting}[style=styleCMake]
+# Inside MultiSource/Applications/GeoDistance/CMakeLists.txt
+# (Unfinished)
+llvm_multisource(geo-distance)
+llvm_test_data(geo-distance sample_input.txt)
+\end{lstlisting}
+
+There are some new CMake directives here. llvm\_multisource and its sibling, llvm\_singlesource, add a new executable build target from multiple source files or only a single source file, respectively. They're basically add\_executable, but as shown in the previous code, you can choose to leave the source file list empty, and it will use all the C/C++ source files shown in the current directory as input.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
+\hspace*{0.7cm}If there are multiple source files but you're using llvm\_singlesource, every source file will be treated as a standalone executable.
+\end{tcolorbox}
+
+llvm\_test\_data copies any resource/data files you want to use during runtime to the proper working directory. In this case, it's the sample\_input.txt file.
+
+Now that the skeleton has been set up, it's time to configure the compilation flags using the following code:
+
+\begin{lstlisting}[style=styleCMake]
+# Inside MultiSource/Applications/GeoDistance/CMakeLists.txt
+# (Continue)
+list(APPEND CPPFLAGS -DSMALL_INPUT)
+list(APPEND CFLAGS -ffast-math)
+
+llvm_multisource(geo-distance)
+llvm_test_data(geo-distance sample_input.txt)
+\end{lstlisting}
+
+Finally, TestSuite needs to know how to run the test and how to verify the result:
+
+\begin{lstlisting}[style=styleCMake]
+# Inside MultiSource/Applications/GeoDistance/CMakeLists.txt
+# (Continue)
+…
+set(RUN_OPTIONS sample_input.txt)
+set(FP_TOLERANCE 0.001)
+llvm_multisource(geo-distance)
+…
+\end{lstlisting}
+
+The RUN\_OPTIONS CMake variable is pretty straightforward – it provides the commandline options for the testing executable.
+
+For the verification part, by default, TestSuite will use an enhanced diff to compare the output of stdout and the exit code against files whose filename end with .reference\_output.
+
+For example, in our case, a GeoDistance/geo-distance.reference\_output file is created with the expected answer and exit status code:
+
+\begin{tcblisting}{commandshell={}}
+94.873
+exit 0
+\end{tcblisting}
+
+You might find that the expected answer here is slightly different from the output at the beginning of this section (94.873467), and that's because the comparison tool allows you to designate the desired floating-point precision, which is controlled by the FP\_TOLERANCE CMake variable shown previously.
+
+In this section, we learned how to leverage the llvm-test-suite project and its TestSuite framework to test executables that are either from an existing codebase or are unable to express testing logic using textual scripts. This will help you become more efficient in testing different kinds of projects using LIT.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
