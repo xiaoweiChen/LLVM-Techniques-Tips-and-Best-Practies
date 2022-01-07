@@ -1,8 +1,9 @@
-In the previous chapter, we saw that LLVM's build system is a behemoth: it contains hundreds of build files with thousands of interleaving build dependencies. Not to mention, it contains targets that require custom build instructions for heterogeneous source files. These complexities drove LLVM to adopt some advanced build system features and, more importantly, a more structural build system design. In this chapter, our goal will be to learn about some important directives for the sake of writing more concise and expressive build files when doing both in-tree and out-of-tree LLVM developments.
+
+在前一章中，我们知道了LLVM具有庞大的构建系统：包含数百个构建文件和数千个依赖项，其中还需要为异构源文件定制构建指令的目标。这些复杂性需要LLVM使用先进的构建系统，并采用更结构化的方式进行设计。本章中，会学习一些重要的指令，以便在进行源码树内和树外进行LLVM开发时，编写出更简洁和表达性更强的构建脚本。
 
 本章中，我们将讨论以下主题:
 
 \begin{itemize}
-	\item Exploring a glossary of LLVM's important CMake directives
-	\item Integrating LLVM via CMake in out-of-tree projects
+\item 了解LLVM重要的CMake指令的词汇表
+\item 其他项目如何通过CMake集成LLVM
 \end{itemize}

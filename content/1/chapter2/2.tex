@@ -1,8 +1,8 @@
-LLVM has switched to CMake from GNU autoconf due to higher flexibility in terms of choosing underlying build systems. Ever since, LLVM has come up with many custom CMake functions, macros, and rules to optimize its own usage. This section will give you an overview of the most important and frequently used ones among them. We will learn how and when to use them.
+因为对构建系统灵活性的要求，LLVM的构建方式已经从GNU autoconf切换到CMake。从那以后，LLVM提出了许多定制的CMake函数、宏和规则来优化自己的使用。本节将为您概述其中最重要和最常用的几个。我们将学习如何以及何时使用它们。
 
-\subsubsubsection{2.2.1\hspace{0.2cm}Using the CMake function to add new libraries}
+\subsubsubsection{2.2.1\hspace{0.2cm}使用CMake添加新的库}
 
-Libraries are the building blocks of the LLVM framework. However, when writing CMakeLists.txt for a new library, you shouldn't use the normal add\_library directive that appears in normal CMakeLists.txt files, as follows:
+库是LLVM框架的基本构建块。要为一个新库编写CMakeLists.txt时，不要使用\texttt{add\_library}指令:
 
 \begin{lstlisting}[style=styleCMake]
 # In an in-tree CMakeLists.txt file…
@@ -10,18 +10,18 @@ add_library(MyLLVMPass SHARED
   MyPass.cpp) # Do NOT do this to add a new LLVM library
 \end{lstlisting}
 
-There are several drawbacks of using the vanilla add\_library here, as follows:
+使用\texttt{add\_library}有几个缺点:
 
 \begin{itemize}
-\item As shown in Chapter 1, Saving Resources When Building LLVM, LLVM prefers to use a global CMake argument (that is, BUILD\_SHARED\_LIBS) to control whether all its component libraries should be built statically or dynamically. It's pretty hard to do that using the built-in directives.
+\item 第1章在构建LLVM时，LLVM更喜欢使用全局CMake参数(即\texttt{BUILD\_SHARED\_LIBS})来控制所有的组件库是静态构建还是动态构建。使用内置指令很难做到这一点的。
 
-\item Similar to the previous point, LLVM prefers to use a global CMake arguments to control some compile flags, such as whether or not to enable Runtime Type Information (RTTI) and C++ exception handling in the code base.
+\item 类似的，LLVM更喜欢使用一个全局的CMake参数来控制一些编译标志，比如是否启用\textbf{运行时类型信息(RTTI)}和代码库中的\textbf{\texttt{C++}异常处理}。
 
-\item By using custom CMake functions/macros, LLVM can create its own component system, which provides a higher level of abstraction for developers to designate build target dependencies in an easier way.
+\item 通过使用定制的CMake函数/宏，LLVM可以创建自己的组件系统，这为开发人员提供了更高级别的抽象，可以以更容易的方式指定构建目标依赖项。
 
 \end{itemize}
 
-Therefore, you should always use the add\_llvm\_component\_library CMake function shown here:
+因此，可以使用\texttt{add\_llvm\_component\_library}：
 
 \begin{lstlisting}[style=styleCMake]
 # In a CMakeLists.txt
@@ -29,11 +29,11 @@ add_llvm_component_library(LLVMFancyOpt
   FancyOpt.cpp)
 \end{lstlisting}
 
-Here, LLVMFancyOpt is the final library name and FancyOpt.cpp is the source file.
+这里，\texttt{LLVMFancyOpt}是库名，\texttt{FancyOpt.cpp}是源文件。
 
-In regular CMake scripts, you can use target\_link\_libraries to designate a given target's library dependencies, and then use add\_dependencies to assign dependencies among different build targets to create explicit build orderings. There is an easier way to do those tasks when you're using LLVM's custom CMake functions to create library targets.
+常规的CMake脚本中，可以使用\texttt{target\_link\_libraries}来指定给定目标的库依赖关系，然后使用\texttt{add\_dependencies}在不同的构建目标之间，分配依赖关系来创建显式的描绘构建顺序。当使用LLVM的自定义CMake函数来创建库目标时，有一个更简单的方法来完成这些任务。
 
-By using the LINK\_COMPONENTS argument in add\_llvm\_component\_library (or add\_llvm\_library, which is the underlying implementation of the former one), you can designate the target's linked components:
+通过使用\texttt{add\_llvm\_component\_library}中的\texttt{LINK\_COMPONENTS}参数(或\texttt{add\_llvm\_library}，是前一个的更底层实现)，可以为目标指定需要链接的组件:
 
 \begin{lstlisting}[style=styleCMake]
 add_llvm_component_library(LLVMFancyOpt
@@ -42,7 +42,7 @@ add_llvm_component_library(LLVMFancyOpt
 	Analysis ScalarOpts)
 \end{lstlisting}
 
-Alternatively, you can do the same thing with the LLVM\_LINK\_COMPONENTS variable, which is defined before the function call:
+或者，可以对\texttt{LLVM\_LINK\_COMPONENTS}变量做同样的事情，而且需要在函数调用之前定义:
 
 \begin{lstlisting}[style=styleCMake]
 set(LLVM_LINK_COMPONENTS
@@ -51,7 +51,7 @@ add_llvm_component_library(LLVMFancyOpt
 	FancyOpt.cpp)
 \end{lstlisting}
 
-Component libraries are nothing but normal libraries with a special meaning when it comes to the LLVM building blocks you can use. They're also included in the gigantic libLLVM library if you choose to build it. The component names are slightly different from the real library names. If you need the mapping from component names to library names, you can use the following CMake function:
+当需要使用的LLVM构建块时，组件库不过是具有特殊意义的普通库。如果选择构建它，其就会包含在巨大的libLLVM库中，组件名与真正的库名会略有不同。如果需要从组件名映射到库名，可以使用下面的CMake函数:
 
 \begin{lstlisting}[style=styleCMake]
 add_llvm_component_library(LLVMFancyOpt
@@ -60,7 +60,7 @@ add_llvm_component_library(LLVMFancyOpt
 	${BOOST_LIBRARY})
 \end{lstlisting}
 
-If you want to directly link against a normal library (the non-LLVM component one), you can use the LINK\_LIBS argument:
+如果想直接链接到一个普通的库(非LLVM组件)，可以使用\texttt{LINK\_LIBS}参数:
 
 \begin{lstlisting}[style=styleCMake]
 add_llvm_component_library(LLVMFancyOpt
@@ -69,7 +69,7 @@ add_llvm_component_library(LLVMFancyOpt
 	${BOOST_LIBRARY})
 \end{lstlisting}
 
-To assign general build target dependencies to a library target (equivalent to add\_dependencies), you can use the DEPENDS argument:
+要将常规构建目标依赖分配给库目标(相当于\texttt{add\_dependencies})，可以使用\texttt{DEPENDS}参数:
 
 \begin{lstlisting}[style=styleCMake]
 add_llvm_component_library(LLVMFancyOpt
@@ -78,13 +78,13 @@ add_llvm_component_library(LLVMFancyOpt
 	intrinsics_gen)
 \end{lstlisting}
 
-intrinsics\_gen is a common target representing the procedure of generating header files containing LLVM intrinsics definitions.
+\texttt{intrinsics\_gen}是一个常见的目标，表示生成包含LLVM intrinsics的头文件。
 
 \hspace*{\fill} \\
 \noindent
-\textbf{Adding one build target per folder}
+\textbf{为每个文件夹添加一个构建目标}
 
-Many LLVM custom CMake functions have a pitfall that involves source file detection. Let's say you have a directory structure like this:
+许多LLVM定制的CMake函数都有涉及到源文件检测陷阱。假设有一个这样的目录结构:
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
