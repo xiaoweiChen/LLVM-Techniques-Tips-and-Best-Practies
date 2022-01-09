@@ -1,4 +1,4 @@
-Writing an in-tree LLVM IR regression test is pretty easy: all you need to do is annotate the IR file with testing directives. Look at the following script, for example:
+编写一个源码树内LLVM IR回归测试非常简单，用测试指令注释IR文件：
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
@@ -15,13 +15,13 @@ define i32 @foo(i32 \%c) \{ \\
 \}
 \end{tcolorbox}
 
-This script checks if InstCombine (triggered by the -instcombine command-line option shown in the preceding snippet) simplifies two succeeding arithmetic adds into one. After putting this file into an arbitrary folder under llvm/test, the script will automatically be picked and run as part of the regression test when you're executing the llvm-lit command-line tool.
+这个脚本检查InstCombine(由前面代码中显示的\texttt{-instcombine}命令行选项触发)是否将两个后续的算术相加简化为一个指令。将该文件放入llvm/test下的任意文件夹后，当执行llvm-lit工具时，脚本将会自动选中，并作为回归测试的一部分运行。
 
-Despite its convenience, this barely helps you use LIT in out-of-tree projects. Using LIT out-of-tree is especially useful when your project needs some end-to-end testing facilities, such as a format converter, a text processor, a linter, and, of course, a compiler. This section will show you how to bring LIT to your out-of-tree projects, and then provide you with a complete picture of the running flow of LIT.
+尽管很方便，但几乎不能帮助您在树外项目中使用LIT。当其他项目需要一些端到端测试工具(比如：格式转换器、文本处理器、检测程序，还有编译器)时，树外LIT尤其好用。本节将向您展示如何将LIT引入到树外项目中，然后提供LIT运行流程的完整描述。
 
-\subsubsubsection{3.2.1\hspace{0.2cm}Preparing for our example project}
+\subsubsubsection{3.2.1\hspace{0.2cm}准备示例项目}
 
-In this section, we will use an out-of-tree CMake project. This example project builds a command-line tool, js-minifier, that minifies arbitrary JavaScript code. We will transform the following JavaScript code:
+本节中，将使用源码树外的CMake项目。这个示例项目构建了一个工具\texttt{js-minifier}，它用于简化JavaScript代码。我们将转换以下JavaScript代码:
 
 \begin{lstlisting}[style=styleJavaScript]
 const foo = (a, b) => {
@@ -30,16 +30,15 @@ const foo = (a, b) => {
 }
 \end{lstlisting}
 
-This will be transformed into some other semantic-equivalent code that is as short as possible:
+可以将其转换成一些语义等价的代码，并尽可能短:
 
 \begin{lstlisting}[style=styleJavaScript]
 const foo = (a,b) => {let c = a + b; console.log(`This is ${c}`);}
 \end{lstlisting}
 
-Instead of teaching you how to write this js-minifier, the goal of this section is to
-show you how to create a LIT testing environment to test this tool.
+本节的目标不是了解如何编写这个\texttt{js-minifier}，而是如何创建一个LIT测试环境，从而对这个工具进行测试。
 
-The example project has the following folder structure:
+示例项目的文件夹结构如下所示:
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
@@ -54,9 +53,9 @@ The example project has the following folder structure:
 \hspace*{0.3cm}|\_\_\_ /build
 \end{tcolorbox}
 
-The files under the /src folder contain the source code for js-minifier (which we are not going to cover here). What we will focus on here are the files that will be used for testing js-minifier, which sit under the /test folder (for now, there is only one file, test.js).
+src文件夹下的文件包含js-minifier的源代码(这里不打算介绍)。这里我们关注的是用于测试js-minifier的文件，位于/test文件夹下(目前只有一个文件test.js)。
 
-In this section, we are going to set up a testing environment so that when we run llvmlit – the testing driver and main character of this section – under the CMake /build folder, it will print testing results, like this:
+本节中，我们将建立一个测试环境，当我们在CMake /build文件夹下运行llvmlit(测试驱动程序和本节的主要字符)时，就会打印测试结果，像这样:
 
 \begin{tcblisting}{commandshell={}}
 $ cd build
@@ -67,9 +66,9 @@ Testing Time: 0.03s
   Expected Passes : 1
 \end{tcblisting}
 
-This shows how many and what test cases have passed.
+这显示了多少测试用例通过了测试，以及具体是哪些测试用例。
 
-Here is the testing script, test.js:
+下面是测试脚本test.js：
 
 \begin{lstlisting}[style=styleJavaScript]
 // RUN: %jsm %s -o - | FileCheck
@@ -82,17 +81,17 @@ const foo = (a, b) => {
 }
 \end{lstlisting}
 
-As you can see, it is a simple testing process that runs the js-minifier tool – represented by the \texttt{\%jsm} directive, which will be replaced by the real path to js-minifier executable, as explained later – and checks the running result with FileCheck by using its CHECK and CHECK-SAME directives.
+可以看到，这是一个简单的测试过程，运行js-minifier工具——由\texttt{\%jsm}指令将被js-minifier可执行文件的实际路径所替代——并使用CHECK和CHECK-SAME的指令，用FileCheck检查运行结果。
 
-With that, we've set up our example project. Before we wrap up the preparation, there is one final tool we need to create.
+这样，我们的示例项目就完成了。在结束准备工作之前，我们还需要创建最后一个工具。
 
-Since we're trying to cut down on our reliance on the LLVM source tree, recreate the llvm-lit command-line tool using the LIT package available in the PyPi repository (that is, the pip command-line tool). All you need to do is install that package:
+因为试图减少对LLVM源代码树的依赖，所以要使用PyPi存储库中可用的LIT包(即pip命令行工具)重新创建\texttt{llvm-lit}工具。你所需要做的就是安装这个包:
 
 \begin{tcblisting}{commandshell={}}
 $ pip install --user lit
 \end{tcblisting}
 
-Finally, wrap the package with the following script:
+最后，用下面的脚本包装这个包:
 
 \begin{lstlisting}[style=stylePython]
 #!/usr/bin/env python
@@ -101,14 +100,14 @@ if __name__ == '__main__':
 	main()
 \end{lstlisting}
 
-Now, we can use LIT without building an LLVM tree! Next, we will create some LIT configuration scripts that will drive the whole testing flow.
+现在，我们无需构建LLVM树，就可以使用LIT了。接下来，我们将创建一些LIT配置脚本，这些脚本将驱动整个测试流。
 
-\subsubsubsection{3.2.2\hspace{0.2cm}Writing LIT configurations}
+\subsubsubsection{3.2.2\hspace{0.2cm}对LIT进行配置}
 
-In this subsection, we'll show you how to write LIT configuration scripts. These scripts describe the testing process – where the files will be tested, the testing environment (if we need to import any tool, for example), the policy when there is a failure, and so on. Learning these skills can greatly improve how you use LIT in places outside the LLVM tree. Let's get started:
+本小节中，将展示如何编写LIT配置脚本。这些脚本描述了测试过程——测试文件在哪里、如何配置测试环境(例如，需要导入某些工具)、出现故障时的应对策略等。学习这些技能可以极大地改善在LLVM之外的地方使用LIT的体验。这就开始吧！
 
 \begin{enumerate}
-\item Inside the /JSMinifier/test folder, create a file called lit.cfg.py that contains the following content:
+\item 在/JSMinifier/test文件夹中，创建一个名为lit.cfg.py的文件:
 
 \begin{lstlisting}[style=stylePython]
 import lit.formats
@@ -118,11 +117,11 @@ config.test_format = lit.formats.ShTest(True)
 config.suffixes = ['.js']
 \end{lstlisting}
 
-Here, the snippet is providing LIT with some information. The config variable here is a Python object that will be populated later when this script is loaded into LIT's runtime. It's basically a registry with predefined fields that carry configuration values, along with custom fields that can be added by lit.*.py scripts at any time.
+代码为LIT提供了一些信息。这里的配置变量是一个Python对象，当这个脚本加载到LIT的运行时，将使用相应的信息进行替代。使用预定义的字段，本质上就是注册表配置值，可以使用lit.*.py脚本添加相应的定制字段。
 
-The config.test\_format field suggests that LIT will run every test inside a shell environment (in the ShTest format), while the config.suffixes field suggests that only files with .js in their filename suffix will be treated as test cases (that is, all the JavaScript files).
+config.test\_format字段表示LIT将在shell环境中运行每个测试(以ShTest格式)，而config.suffixes字段表示只有文件名后缀为.js的文件才会视为测试用例(就是所有的JavaScript文件)。
 
-\item Following on from the code snippet in the previous step, LIT now needs two other pieces of information: the root path to the test files and the working directory:
+\item 写完上一步的代码后，LIT现在需要另外两个信息：测试文件的根路径和工作目录:
 
 \begin{lstlisting}[style=stylePython]
 …
@@ -132,9 +131,9 @@ config.test_exec_root = os.path.join(config.my_obj_root,
 'test')
 \end{lstlisting}
 
-For config.test\_source\_root, it's simply pointing to /JSMinifier/test. On the other hand, config.test\_exec\_root, which is the working directory, is pointing to a place whose parent folder is the value of a custom configuration field, my\_obj\_root. While it will be introduced later, simply put, it points to the build folder path. In other words, config.test\_exec\_root will eventually have a value of /JSMinifier/build/test.
+config.test\_source\_root指向/JSMinifier/test。另一方面，config.test\_exec\_root表示工作目录，my\_obj\_root是是一个自定义配置字段的值表示其父文件夹位置，它指向构建文件夹的路径。换句话说，config.test\_exec\_root最终值为/JSMinifier/build/test。
 
-\item The \%jsm directive we saw earlier in test.js is used as a placeholder that will eventually be replaced with the real/absolute path of the js-minifier executable. The following lines will set up the replacements:
+\item 之前在test.js中，使用\texttt{\%jsm}指令作为占位符，其最终会被js-minifier可执行文件的实际/绝对路径所取代。以下几行将设置替换值:
 
 \begin{lstlisting}[style=stylePython]
 …
@@ -144,9 +143,9 @@ config.substitutions.append(('%jsm',
 os.path.join(config.my_obj_root, 'js-minifier')))
 \end{lstlisting}
 
-This code adds a new entry to the config.substitutions field, which makes LIT replace every \%jsm occurrence in the test files with the /JSMinifier/ build/js-minifier value. This wraps up all the content in lit.cfg.py.
+这段代码向配置添加了一个config.substitutions字段，它使LIT用/JSMinifier/ build/js-minifier值替换测试文件中出现的每一个\texttt{\%jsm}。这将把所有内容打包到lit.cfg.py中。
 
-\item Now, create a new file called lit.site.cfg.py.in and put it under the /JSMinifier/test folder. The first part of this file looks like this:
+\item 现在，创建一个名为lit.site.cfg.py.in的新文件，并将其放在/JSMinifier/test文件夹下。这个文件的第一部分看起来是这样:
 
 \begin{lstlisting}[style=stylePython]
 import os
@@ -154,9 +153,9 @@ config.my_src_root = r'@CMAKE_SOURCE_DIR@'
 config.my_obj_root = r'@CMAKE_BINARY_DIR@'
 \end{lstlisting}
 
-The mystery config.my\_obj\_root field is finally resolved here, but instead of pointing to a normal string, it is assigned to a weird value called @CMAKE\_BINARY\_DIR@. Again, this will be replaced by CMake with the real path later. The same goes for the config.my\_src\_root field.
+神秘的config.my\_obj\_root字段在这里解析，但不指向正常的字符串，它分配到的值为@CMAKE\_BINARY\_DIR@，这个字段将被CMake替换为实际路径，其值与config.my\_src\_root字段一致。
 
-\item Finally, lit.site.cfg.py.in is wrapped up by these lines:
+\item 最后，这些信息都放在了lit.site.cfg.py.in里面:
 
 \begin{lstlisting}[style=stylePython]
 …
@@ -165,25 +164,25 @@ lit_config.load_configure(
 		lit.cfg.py'))
 \end{lstlisting}
 
-Even though this snippet is pretty simple, it's a little hard to understand. Simply put, this file will eventually be materialized into another file, with all the variables clamped by @ being resolved and copied into the build folder. From there, it will call back the lit.cfg.py script we saw in the earlier steps. This will be explained later in this section.
+尽管这段代码非常简单，但还是有点难以理解。简单地说，这个文件最终将具象化到另一个文件中，所有使用两个\texttt{@}包围的变量都将进行解析，并复制到构建文件夹中。在那里，将回调前面步骤中的lit.cfg.py，这将在本节的后面进行解释。
 
-\item Finally, it's time to replace those weird @-clamped strings with real values using CMake's configure\_file function. In /JSMinifier/test/CMakeLists.txt, add the following line somewhere inside the file:
+\item 最后，是时候使用CMake的\texttt{configure\_file}函数将那些使用两个\texttt{@}包围的字符串替换为实际值。在/JSMinifier/test/CMakeLists.txt中，在文件中添加以下内容:
 
 \begin{lstlisting}[style=styleCMake]
 configure_file(lit.site.cfg.py.in
-lit.site.cfg.py @ONLY)
+  lit.site.cfg.py @ONLY)
 \end{lstlisting}
 
-The configure\_file function will replace all the @-clamped string occurrences in the input file (lit.site.cfg.py.in, in this case) with their CMake variable counterparts in the current CMake context.
+\texttt{configure\_file}函数将使用当前CMake中的对应变量的值替换输入文件(lit.site.cfg.py.in)中使用两个\texttt{@}包围的字符串。
 
-For example, let's say there is a file called demo.txt.in that contains the following content:
+例如，假设有一个名为demo.txt.in的文件，其中包含以下内容:
 
 \begin{lstlisting}[style=styleCMake]
 name = "@FOO@"
 age = @AGE@
 \end{lstlisting}
 
-Now, let's use configure\_file in CMakeLists.txt:
+现在，在CMakeLists.txt中使用\texttt{configure\_file}:
 
 \begin{lstlisting}[style=styleCMake]
 set(FOO "John Smith")
@@ -192,14 +191,14 @@ configure_file(demo.txt.in
 			   demo.txt @ONLY)
 \end{lstlisting}
 
-Here, the aforementioned replacement will kick in and generate an output file, demo.txt, that contains the following content:
+前面提到的替换将启动，并生成一个输出文件demo.txt，文件内容如下:
 
 \begin{lstlisting}[style=styleCMake]
 name = "John Smith"
 age = 87
 \end{lstlisting}
 
-\item Back to the lit.site.cfg.py.in snippets, since CMAKE\_SOURCE\_DIR and CMAKE\_BINARY\_DIR are always available, they point to the root source folder and the build folder, respectively. The resulting /JSMinifier/build/test/lit. site.cfg.py will contain the following content:
+\item 回到lit.site.cfg.py.in中，由于\texttt{CMAKE\_SOURCE\_DIR}和\texttt{CMAKE\_BINARY\_DIR}分别指向根源文件夹和构建文件夹。/JSMinifier/build/test/lit.site.cfg.py将包含以下内容:
 
 \begin{lstlisting}[style=stylePython]
 import os
@@ -213,29 +212,33 @@ lit_config.load_config(
 
 \end{enumerate}
 
-With that, we have learned how to write LIT configuration scripts for our example project. Now, it is time to explain some details of how LIT works internally, and why we need so many files (lit.cfg.py, lit.site.cfg.py.in, and lit.site.cfg.py).
+至此，我们了解了如何为示例项目编写LIT配置脚本。现在，是时候解释一些关于LIT内部如何工作的细节，以及为什么我们需要这么多文件(lit.cfg.py，lit.site.cfg.py和lit.site.cfg.py)。
 
-\subsubsubsection{3.2.3\hspace{0.2cm}LIT internals}
+\subsubsubsection{3.2.3\hspace{0.2cm}LIT的内部构件}
 
-Let's look at the following diagram, which illustrates the workflow of running LIT tests in the demo project we just created:
+让我们看看下面的图表，它展示了在我们刚刚创建的演示项目中，运行LIT测试的工作流程:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.8\textwidth]{content/1/chapter3/images/1.jpg}\\
-Figure 3.1 – The forking flow of LIT in our example project
+\includegraphics[width=0.9\textwidth]{content/1/chapter3/images/1.jpg}\\
+图3.1 -示例项目中LIT的流程
 \end{center}
 
-Let's take a look at this diagram in more detail:
+让我们详细地看看这张图:
 
 \begin{enumerate}
-\item lit.site.cfg.py.in is copied to /JSMinifier/build/lit.site.cfg.py, which carries some CMake variable values.
-\item The llvm-lit command is launched inside /JSMinifier/build. It will execute lit.site.cfg.py first.
-\item lit.site.cfg.py then uses the load\_configure Python function to load the main LIT configurations (lit.cfg.py) and run all the test cases.
+\item 将lit.site.cfg.py.in复制至/JSMinifier/build//JSMinifier/build/lit.site.cfg.py，其中包含一些CMake变量值。
+
+\item \texttt{llvm-lit}在/JSMinifier/build中启动，将首先执行lit.site.cfg.py。
+
+\item 然后使用\texttt{load\_configure} Python函数加载主要的LIT配置(lit.cfg.py)，并运行所有的测试用例。
 \end{enumerate}
 
-The most crucial part of this diagram is explaining the roles of lit.site.cfg.py and lit.site.cfg.py.in: many parameters, such as the absolute path to the build folder, will remain unknown until the CMake configuration process is complete. So, a trampoline script – that is, lit.site.cfg.py – is placed inside the build folder to relay that information to the real test runner.
+这个图中最关键的部分是解释lit.site.cfg.py和lit.site.cfg.py.in的角色:它们有很多参数，比如构建目录的绝对路径，在CMake配置过程完成前都是未知的。因此，将一个弹性脚本(即lit.site.cfg.py)放置在构建目录中，可以将该信息传递给实际的测试运行器。
 
-In this section, we learned how to write LIT configuration scripts for our out-of-tree example project. We also learned how LIT works under the hood. Knowing this can help you use LIT in a wide variety of projects, in addition to LLVM. In the next section, we will focus on FileCheck, a crucial and commonly used LIT utility that performs advanced pattern checking.
+在本节中，我们了解了如何为自己的树外示例项目编写LIT配置脚本。还了解了LIT在引擎盖下是如何工作的，这可以帮助您在各种各样的项目中使用LIT(除了LLVM)。
+
+下一节中，我们将重点讨论FileCheck，这是一个重要且常用的LIT程序，可以以更高级的模式执行检查。
 
 
 

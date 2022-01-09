@@ -1,13 +1,13 @@
-In the previous chapter, we learned how to take advantage of LLVM's own CMake utilities to improve our development experience. We also learned how to seamlessly integrate LLVM into other out-of-tree projects. In this chapter, we're going to talk about how to get hands-on with LLVM's own testing infrastructure, LIT.
+前一章中，了解了如何利用LLVM的CMake来改善开发体验，并了解了如何将LLVM集成到其他源码树外项目中。本章中，将讨论如何动手使用LLVM的测试架构LIT。
 
-LIT is a testing infrastructure that was originally developed for running LLVM's regression tests. Now, it's not only the harness for running all the tests in LLVM (both unit and regression tests) but also a generic testing framework that can be used outside of LLVM. It also provides a wide range of testing formats to tackle different scenarios. This chapter will give you a thorough tour of the components in this framework and help you master LIT.
+LIT是一个测试基础设施，最初是为运行LLVM的回归测试而开发的。现在，它不仅是在LLVM中运行所有测试(包括单元测试和回归测试)的工具，而且还是一个可以在LLVM之外使用的通用测试框架。它还提供了广泛的测试格式来处理不同的场景。本章将全面介绍这个框架中的组件，并帮助您掌握LIT的使用方式。
 
 本章中，我们将讨论以下主题:
 
 \begin{itemize}
-	\item Using LIT in out-of-tree projects
-	\item Learning about advanced FileCheck tricks
-	\item Exploring the TestSuite framework
+\item 在源码树外项目中使用LIT
+\item 学习高级的FileCheck技巧
+\item 探索TestSuite框架
 \end{itemize}
 
 
