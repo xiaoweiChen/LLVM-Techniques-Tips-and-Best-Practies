@@ -1,20 +1,20 @@
-Implementing your features in an in-tree project is good for prototyping, since most of the infrastructure is already there. However, there are many scenarios where pulling the entire LLVM source tree into your code base is not the best idea, compared to creating an out-of-tree project and linking it against the LLVM libraries. For example, you only want to create a small code refactoring tool using LLVM's features and open source it on GitHub, so telling developers on GitHub to download a multi-gigabyte LLVM source tree along with your little tool might not be a pleasant experience.
+在源码树内项目中，因为大多数基础设施已经存在，可以实现编程语言的特性，有利于原型设计。此外，与创建源码树外项目，以及将其链接到LLVM库相比，将整个LLVM源码树拷贝到对应代码库中并不是个好主意。例如，只想使用LLVM的特性创建一个代码重构工具，并想GitHub上开源它，这样的话，其他GitHub上的开发人员需要下载数GB的LLVM源代码，从而才能使用你的小工具，这会让开发者的体验直线下降。
 
-There are at least two ways to configure out-of-tree projects to link against LLVM:
+据我所知，至少有两种方式可以用来配置其他项目链接到LLVM源码:
 
 \begin{itemize}
-\item Using the llvm-config tool
+\item 使用\texttt{llvm-config}工具
 
-\item Using LLVM's CMake modules
+\item 使用LLVM的CMake模块
 	
 \end{itemize}
 
-Both approaches help you sort out all the details, including header files and library paths. However, the latter creates more concise and readable CMake scripts, which is preferable for projects that are already using CMake. This section will show the essential steps of using LLVM's CMake modules to integrate it into an out-of-tree CMake project.
+这两种方法可以获取相应的信息，包括头文件和库路径。然而，后者会创建了更简洁和可读的CMake脚本，这对于使用CMake的项目来说比较友好。本节将展示使用LLVM的CMake模块，并将其集成到其他CMake项目的基本步骤。
 
-First, we need to prepare an out-of-tree (C/C++) CMake project. The core CMake functions/macros we discussed in the previous section will help us work our way through this. Let's look at our steps:
+首先，需要准备一个源码树外(\texttt{C/C++})的CMake项目。在前一节中讨论的核心CMake函数/宏将帮助我们解决这个问题，现在来看下如何使用它们:
 
 \begin{enumerate}
-\item We are assuming that you already have the following CMakeLists.txt skeleton for a project that needs to be linked against LLVM libraries:
+\item 假设项目中已CMakeLists.txt，并需要链接到LLVM库框架：
 
 \begin{lstlisting}[style=styleCMake]
 project(MagicCLITool)
@@ -24,9 +24,9 @@ add_executable(magic-cli
 	${SOURCE_FILES})
 \end{lstlisting}
 
-Regardless of whether you're trying to create a project generating executable, just like the one we saw in the preceding code block, or other artifacts such as libraries or even LLVM Pass plugins, the biggest question now is how to get include path, as well as library path.
+不管是在创建生成可执行文件(就像我们在前面的代码块中看到的那样)，还是其他工件(如库或甚至LLVM Pass插件)，现在最大的问题是如何获取包含路径，以及库路径。
 
-\item To resolve include path and library path, LLVM provides the standard CMake package interface for you to use the find\_package CMake directive to import various configurations, as follows:
+\item 为了解析包含路径和库路径，LLVM提供了CMake包接口，这样直接使用\texttt{find\_package}指令导入各种配置即可:
 	
 \begin{lstlisting}[style=styleCMake]
 project(MagicCLITool)
@@ -36,16 +36,17 @@ link_directories(${LLVM_LIBRARY_DIRS})
 …
 \end{lstlisting}
 	
-To make the find\_package trick work, you need to supply the LLVM\_DIR CMake variable while invoking the CMake command for this project:
+为了让\texttt{find\_package}起作用，需要在项目使用CMake命令时，设置\texttt{LLVM\_DIR}:
+
 \begin{tcblisting}{commandshell={}}
 $ cmake -DLLVM_DIR=<LLVM install path>/lib/cmake/llvm …
 \end{tcblisting}
 
-Make sure it's pointing to the lib/cmake/llvm subdirectory under LLVM install path.
+确保它指向LLVM安装路径下的lib/cmake/llvm子目录。
 	
-\item After resolving the include path and library, it's time to link the main executable against LLVM's libraries. LLVM's custom CMake functions (for example, add\_llvm\_executable) will be really useful here. But first, CMake needs to be able to find those functions.
+\item 解析了包含路径和库之后，就可以将主可执行文件链接到LLVM的库了。LLVM的自定义CMake函数(例如，\texttt{add\_llvm\_executable})在这里将非常有用，但需要CMake能够找到这些函数实现。
 
-The following snippet imports LLVM's CMake module (more specifically, the AddLLVM CMake module), which contains those LLVM-specific functions/macros that we introduced in the previous section:
+下面的代码导入了LLVM的CMake模块(更具体地说，是AddLLVM的CMake模块)，它包含了前一节中介绍的那些与LLVM相关的函数/宏:
 
 \begin{lstlisting}[style=styleCMake]
 find_package(LLVM REQUIRED CONFIG)
@@ -54,7 +55,7 @@ list(APPEND CMAKE_MODULE_PATH ${LLVM_CMAKE_DIR})
 include(AddLLVM)
 \end{lstlisting}
 
-\item The following snippet adds the executable build target using the CMake function we learned about in the previous section:
+\item 下面的代码使用了前一节中介绍的CMake函数，并添加了可执行的构建目标:
 
 \begin{lstlisting}[style=styleCMake]
 find_package(LLVM REQUIRED CONFIG)
@@ -67,7 +68,7 @@ add_llvm_executable(magic-cli
 	main.cpp)
 \end{lstlisting}
 
-\item Adding the library target makes no difference:
+\item 同理，添加库目标:
 \begin{lstlisting}[style=styleCMake]
 find_package(LLVM REQUIRED CONFIG)
 …
@@ -78,7 +79,7 @@ add_llvm_library(MyMagicLibrary
 	Support Analysis)
 \end{lstlisting}
 
-\item Finally, add the LLVM Pass plugin:
+\item 最后，添加LLVM Pass插件:
 \begin{lstlisting}[style=styleCMake]
 find_package(LLVM REQUIRED CONFIG)
 …
@@ -87,7 +88,7 @@ add_llvm_pass_plugin(MyMagicPass
 	ThePass.cpp)
 \end{lstlisting}
 
-\item In practice, you also need to be careful of LLVM-specific definitions and the RTTI setting:
+\item 实践中，还需要注意\textbf{特定于LLVM的宏定义}和RTTI设置:
 \begin{lstlisting}[style=styleCMake]
 find_package(LLVM REQUIRED CONFIG)
 …
@@ -98,11 +99,12 @@ if(NOT ${LLVM_ENABLE_RTTI})
 endif()
 add_llvm_xxx(source.cpp)
 \end{lstlisting}
-This is especially true for the RTTI part because, by default, LLVM is not built with RTTI support, but normal C++ applications are. A compilation error will be thrown if there is an RTTI mismatch between your code and LLVM's libraries.
+
+对于RTTI部分更要谨慎，因为在默认情况下，LLVM不支持RTTI，但普通的\texttt{C++}应用支持RTTI。如果代码和LLVM的库之间的RTTI配置不同，编译时会出现错误。
 
 \end{enumerate}
 
-Despite the convenience of developing inside LLVM's source tree, sometimes, enclosing the entire LLVM source in your project might not be feasible. So, instead, we must create an out-of-tree project and integrate LLVM as a library. This section showed you how to integrate LLVM into your CMake-based out-of-tree projects and make good use of the LLVM-specific CMake directives we learned about in the Exploring a glossary of LLVM's important CMake directives section.
+尽管在LLVM的源码树中进行开发很方便，但有时将整个LLVM源代码封装在项目中可能不可行。因此，必须创建树外项目，并将LLVM合成为一个库。本节展示了如何将LLVM集成到基于CMake的其他项目中，并充分利用特性于LLVM的CMake指令。
 
 
 

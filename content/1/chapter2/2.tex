@@ -95,7 +95,7 @@ add_llvm_component_library(LLVMFancyOpt
 \hspace*{0.5cm}|\_\_\_ CMakeLists.txt
 \end{tcolorbox}
 
-Here, you have two source files, FancyOpt.cpp and AggressiveFancyOpt.cpp. As their names suggest, FancyOpt.cpp is the basic version of this optimization, while AggressiveFancyOpt.cpp is an alternative, more aggressive version of the same functionality. Naturally, you will want to split them into separate libraries so that users can choose if they wish to include the more aggressive one in their normal workload. So, you might write a CMakeLists.txt file like this:
+这里，有两个源文件：FancyOpt.cpp和AggressiveFancyOpt.cpp。FancyOpt.cpp是这种优化的基线版本，而AggressiveFancyOpt.cpp是一个(更激进的)实现版本。通常，希望将它们独立成库，以便用户选择。所以，可以这样写一个CMakeLists.txt文件:
 
 \begin{lstlisting}[style=styleCMake]
 # In /FancyOpt/CMakeLists.txt
@@ -105,9 +105,9 @@ add_llvm_component_library(LLVMAggressiveFancyOpt
 	AggressiveFancyOpt.cpp)
 \end{lstlisting}
 
-Unfortunately, this would generate error messages telling you something to the effect of Found unknown source AggressiveFancyOpt.cpp … when processing the first add\_llvm\_component\_library statement.
+不幸的是，当处理第一个\texttt{add\_llvm\_component\_library}语句时，会产生错误：\texttt{Found unknown source AggressiveFancyOpt.cpp …}
 
-LLVM's build system enforces a stricter rule to make sure that all C/C++ source files in the same folder are added to the same library, executable, or plugin. To fix this, it is necessary to split either file into a separate folder, like so:
+LLVM的构建系统会执行更严格的规则，以确保同一文件夹中的所有\texttt{C/C++}源文件都能添加到相同的库、可执行文件或插件中。为了解决这个问题，需要将两个文件拆分到单独的文件夹中，如下所示:
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
@@ -119,7 +119,7 @@ LLVM's build system enforces a stricter rule to make sure that all C/C++ source 
 \hspace*{1cm}|\_\_\_ CMakeLists.txt
 \end{tcolorbox}
 
-In /FancyOpt/CMakeLists.txt, we have the following:
+/FancyOpt/CMakeLists.txt：
 
 \begin{lstlisting}[style=styleCMake]
 add_llvm_component_library(LLVMFancyOpt
@@ -127,43 +127,43 @@ add_llvm_component_library(LLVMFancyOpt
 add_subdirectory(AggressiveFancyOpt)
 \end{lstlisting}
 
-Finally, in /FancyOpt/AggressiveFancyOpt/CMakeLists.txt, we have the following:
+/FancyOpt/AggressiveFancyOpt/CMakeLists.txt：
 
 \begin{lstlisting}[style=styleCMake]
 add_llvm_component_library(LLVMAggressiveFancyOpt
 	AggressiveFancyOpt.cpp)
 \end{lstlisting}
 
-These are the essentials of adding build targets for (component) libraries using LLVM's custom CMake directives. In the next two sections, we will show you how to add executable and Pass plugin build targets using a different set of LLVM-specific CMake directives.
+这些是使用LLVM的自定义CMake指令为(组件)库添加构建目标的重要方式。接下来的两节中，将展示如何使用不同的(LLVM的)CMake指令来添加可执行文件和Pass插件构建目标。
 
-\subsubsubsection{2.2.2\hspace{0.2cm}Using the CMake function to add executables and tools}
+\subsubsubsection{2.2.2\hspace{0.2cm}使用CMake函数添加可执行文件和工具}
 
-Similar to add\_llvm\_component\_library, to add a new executable target, we can use add\_llvm\_executable or add\_llvm\_tool:
+与\texttt{add\_llvm\_component\_library}类似，添加一个新的可执行目标，可以使用\texttt{add\_llvm\_executable}或\texttt{add\_llvm\_tool}:
 
 \begin{lstlisting}[style=styleCMake]
 add_llvm_tool(myLittleTool
 	MyLittleTool.cpp)
 \end{lstlisting}
 
-These two functions have the same syntax. However, only targets created by add\_llvm\_tool will be included in the installations. There is also a global CMake variable, LLVM\_BUILD\_TOOLS, that enables/disables those LLVM tool targets.
+这两个函数语法相同，只有通过\texttt{add\_llvm\_tool}创建的目标将包含在安装过程中。还有一个全局的CMake变量\texttt{LLVM\_BUILD\_TOOLS}，用来启用/禁用LLVM工具。
 
-Both functions can also use the DEPENDS argument to assign dependencies, similar to add\_llvm\_library, which we introduced earlier. However, you can only use the LLVM\_LINK\_COMPONENTS variable to designate components to link.
+这两个函数也可以通过\texttt{DEPENDS}参数来设置依赖项，类似于前面的\texttt{add\_llvm\_library}。这里，只能使用\texttt{LLVM\_LINK\_COMPONENTS}来指定链接组件。
 
-\subsubsubsection{2.2.3\hspace{0.2cm}Using the CMake function to add Pass plugins}
+\subsubsubsection{2.2.3\hspace{0.2cm}使用CMake函数添加Pass插件}
 
-While we will cover Pass plugin development later in this book, adding a build target for a Pass plugin couldn't be any easier than now (compared to earlier LLVM versions, which were still using add\_llvm\_library with some special arguments). We can simply use the following command:
+虽然本书的后面章节会讨论Pass插件的开发，但了解如何为Pass插件添加构建目标现最为合适(早期的LLVM版本仍然使用\texttt{add\_llvm\_library}和一些特定的参数):
 
 \begin{lstlisting}[style=styleCMake]
 add_llvm_pass_plugin(MyPass
 	HelloWorldPass.cpp)
 \end{lstlisting}
 
-The LINK\_COMPONENTS, LINK\_LIBS, and DEPENDS arguments are also available here, with the same usages and functionalities as in add\_llvm\_component\_library.
+\texttt{LINK\_COMPONENTS}、\texttt{LINK\_LIBS}和\texttt{DEPENDS}参数也可以在这里使用，其用法和功能与\\\texttt{add\_llvm\_component\_library}相同。
 
-These are some of the most common and important LLVM-specific CMake directives. Using these directives can not only make your CMake code more concise but also help synchronize it with LLVM's own build system, in case you want to do some in-tree development. In the next section, we will show you how to integrate LLVM into an out-oftree CMake project, and leverage the knowledge we learned in this chapter.
+这是一些常见和重要的(与llvm相关的)CMake指令，使用这些指令不仅可以使CMake代码更简洁。如果想做一些源码树内的开发，还可以与LLVM的构建系统同步。下一节中，利用本章所了解到的知识，了解如何将LLVM集成到源码树外的CMake项目中。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=In-tree versus out-of-tree development]
-\hspace*{0.7cm}In this book, in-tree development means contributing code directly to the LLVM project, such as fixing LLVM bugs or adding new features to the existing LLVM libraries. Out-of-tree development, on the other hand, either represents creating extensions for LLVM (writing an LLVM pass, for example) or using LLVM libraries in some other projects (using LLVM's code generation libraries to implement your own programming language, for example).
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=LLVM源码内/外的开发]
+\hspace*{0.7cm}本书中，源码树内开发是直接向LLVM项目贡献代码，例如：修复LLVM Cug或向现有的LLVM库添加新特性。另一方面，源码树外开发，要么为LLVM创建扩展(例如，编写一个LLVM pass)，要么在其他项目中使用LLVM库(例如，使用LLVM的代码生成库来实现属于自己的编程语言)。
 \end{tcolorbox}
 
 
