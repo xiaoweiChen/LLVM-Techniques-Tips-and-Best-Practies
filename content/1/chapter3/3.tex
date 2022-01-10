@@ -1,18 +1,17 @@
 
-FileCheck is an advanced pattern checker that originates from LLVM. It has a similar role as the grep command-line tool available in Unix/Linux systems, but provides a more powerful yet straightforward syntax for line-based contexts. Furthermore, the fact that
-you can put FileCheck directives beside the testing targets makes the test cases selfcontained and easy to understand.
+\textbf{FileCheck}是LLVM的高级模式检查器，与Unix/Linux系统中的grep类似，使用基于行的上下文，从而提供了更强大而简单的语法。此外，可以将\texttt{FileCheck}指令放在测试目标旁，可以让测试用例自包含，使测试更容易理解。
 
-Though basic FileCheck syntax is easy to get hands-on with, there are many other FileCheck functionalities that truly unleash the power of FileCheck and greatly improve your testing experiences – creating more concise testing scripts and parsing more complex program output, to name a few. This section will show you some of those skills.
+虽然基本的\texttt{FileCheck}语法很容易上手，但\texttt{FileCheck}还有许多其他功能，它们才能真正展示\texttt{FileCheck}的强大功能，并极大地改善了开发者的测试体验——例如创建更简洁的测试脚本和解析更复杂的程序输出，本节将向您展示其中的一些技巧。
 
-\subsubsubsection{3.3.1\hspace{0.2cm}Preparing for our example project}
+\subsubsubsection{3.3.1\hspace{0.2cm}准备示例项目}
 
-The FileCheck command-line tool needs to be built first. Similar to the previous section, building one of the check-XXX (phony) targets in the LLVM tree is the easiest way to do so. The following is an example of this:
+首先需要构建\texttt{FileCheck}命令行工具。与前一节类似，在LLVM树中构建一个\texttt{check-XXX}(伪)目标是最简单的方法:
 
 \begin{tcblisting}{commandshell={}}
 $ ninja check-llvm-support
 \end{tcblisting}
 
-In this section, we are going to use an imaginary command-line tool called js-obfuscator, a JavaScript obfuscator, for our example. Obfuscation is a common technique that's used to hide intellectual properties or enforce security protections. For example, we could use a real-world JavaScript obfuscator on the following JavaScript code:
+在本节中，我们将使用一个假想的命令行工具\texttt{js-obfuscator}，这是一个JavaScript 混淆工具。\textbf{混淆}是一种常用的技术，用于隐藏知识产权或加强安全保护。例如，可以在以下JavaScript代码中使用JavaScript混淆器:
 
 \begin{lstlisting}[style=styleJavaScript]
 const onLoginPOST = (req, resp) => {
@@ -24,7 +23,7 @@ const onLoginPOST = (req, resp) => {
 myReset.post('/console', onLoginPOST);
 \end{lstlisting}
 
-This would transform it into the following code:
+将转换成以下代码:
 
 \begin{lstlisting}[style=styleJavaScript]
 const t = "nikfmnsdzaO";
@@ -37,20 +36,20 @@ const aaa = (a, b) => {
 G.f4(YYY, aaa);
 \end{lstlisting}
 
-This tool will try to make the original script as human-unreadable as possible. The challenge for the testing part is to verify its correctness while still reserving enough space for randomness. Simply put, js-obfuscator will only apply four obfuscation rules:
+这个工具将尽量使原始脚本让人看不懂。测试部分面临的挑战是，在验证其正确性的同时仍然为随机性保留足够的空间。简单地说，\texttt{js-obfuscator}只有4条混淆规则:
 
 \begin{enumerate}
-\item Only obfuscate local variable names, including formal parameters. The formal parameter names should always be obfuscated in <lower case word><argument index number> format. The local variable names will always be obfuscated into a combination of lowercase and uppercase letters.
+\item 只混淆局部变量名，包括形参。形式参数名以\textit{<小写单词><参数索引号>}格式进行混淆。局部变量名混淆成小写字母和大写字母的组合。
 
-\item If we are declaring functions with the arrow syntax – for example, let foo = (arg1, arg2) => \{…\} – the arrow and the left curly brace (=> \{) need to be put in the next line.
+\item 如果用箭头语法来声明函数——例如，\texttt{foo = (arg1, arg2) => \{…\}}——箭头和左花括号\texttt{(=> \{})需要放在下一行。
 	
-\item Replace a literal number with the same value but in a different representation; for example, replacing 87 with 0x57 or 87.000.
+\item 用不同表示形式的相同值替换文字数，例如：将87替换为0x57或87.000。
 
-\item When you supply the tool with the -\,-shuffle-funcs command-line option, shuffle the declaration/appearing order of the top-level functions.
+\item 当使用\texttt{-\,-shuffle-funcs}选项时，会改变顶层函数的声明/出现顺序。
 
 \end{enumerate}
 
-Finally, the following JavaScript code is the example to be used with the js-obfuscator tool:
+最后，下面的JavaScript代码是使用\texttt{js-obfuscator}的一个示例:
 
 \begin{lstlisting}[style=styleJavaScript]
 const square = x => x * x;
@@ -74,12 +73,12 @@ const my_func2 = (factor1, factor2) => {
 console.log(my_func2(1,2));
 \end{lstlisting}
 
-\subsubsubsection{3.3.2\hspace{0.2cm}Writing FileCheck directives}
+\subsubsubsection{3.3.2\hspace{0.2cm}书写FileCheck指令}
 
-The following steps are going to fill in all the TODO comments that appeared in the preceding code:
+下面的步骤将填充前面代码中出现的\texttt{TODO}注释:
 
 \begin{enumerate}
-\item Going according to the line number, the first task is to check whether the local variables and parameters have been obfuscated properly. According to the spec, formal parameters have special renaming rules (that is, <lower case word><argument index number>), so using the normal CHECK directive with FileCheck's own regex syntax will be the most suitable solution here:
+\item 根据行号，第一个任务是检查局部变量和参数是否正确地混淆。根据规范，形参有特殊的重命名规则(即\textit{<小写单词><参数索引号>})，所以使用普通的\texttt{CHECK}指令和FileCheck自己的正则表达式是这里最合适的解决方案:
 
 \begin{lstlisting}[style=styleJavaScript]
 // CHECK: my_func1 = ({{[a-z]+0}}, {{[a-z]+1}},
@@ -88,9 +87,9 @@ const my_func1 = (input1, input2, input3) => {
 …
 \end{lstlisting}
 
-FileCheck uses a subset of regular expressions for pattern matching, which are enclosed by either \{\{…\}\} or [[…]] symbols. We will cover the latter one shortly.
+FileCheck使用正则表达式的子集来进行模式匹配，使用\texttt{\{\{…\}\}}或\texttt{[[…]]}。
 
-\item This code looks pretty straightforward. However, the semantics of the code also need to be correct once obfuscation has been performed. So, in addition to checking the format, the succeeding references to those parameters need to be refactored as well, which is where FileCheck's pattern binding comes in:
+\item 这段代码看起来非常简单。当进行了混淆，代码也需要正确的语义。因此，除了检查格式之外，对参数的后续引用也需要重构，这就是要使用FileCheck的模式绑定的原因：
 
 \begin{lstlisting}[style=styleJavaScript]
 // CHECK: my_func1 = ([[A0:[a-z]+0]],
@@ -101,10 +100,10 @@ const my_func1 = (input1, input2, input3) => {
 …
 \end{lstlisting}
 
-This code binds the pattern of the formal parameters with the names A0 ~ A2 using the [[…]] syntax, in which the binding variable name and the pattern are divided by a colon: [[<binding variable>:<pattern>]]. On the reference sites of the binding variable, the same [[…]] syntax is used, but without the pattern part.
+该代码使用\texttt{[[…]]}语法将形参的模式绑定为名称为\texttt{A0~A2}，其中绑定变量名和模式用冒号分开：\texttt{[[<绑定变量>:<模式>]]}。使用相同的\texttt{[[…]]}语法绑定变量的引用位置，不过没有了模式部分。
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}A binding variable can have multiple definition sites. Its reference sites will read the last defined value.
+\hspace*{0.7cm}一个绑定变量可以有多个定义点，其参考点将读取最后的定义值。
 \end{tcolorbox}
 
 \item Let's not forget the second rule – the arrow and left curly brace of the function header need to be put in the second line. To implement the concept of "the line after," we can use the CHECK-NEXT directive:
