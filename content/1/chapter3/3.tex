@@ -106,7 +106,7 @@ const my_func1 = (input1, input2, input3) => {
 \hspace*{0.7cm}一个绑定变量可以有多个定义点，其参考点将读取最后的定义值。
 \end{tcolorbox}
 
-\item Let's not forget the second rule – the arrow and left curly brace of the function header need to be put in the second line. To implement the concept of "the line after," we can use the CHECK-NEXT directive:
+\item 不要忘记第二条规则——函数头的箭头和左花括号需要放在第二行。要实现“后一行”的概念，可以使用\texttt{CHECK-NEXT}指令:
 
 \begin{lstlisting}[style=styleJavaScript]
 // CHECK: my_func1 = ([[A0:[a-z]+0]],
@@ -115,9 +115,9 @@ const my_func1 = (input1, input2, input3) => {
 	// CHECK-NEXT: => {
 \end{lstlisting}
 
-Compared to the original CHECK directive, CHECK-NEXT will not only check if the pattern exists but also ensure that the pattern is in the line that follows the line matched by the previous directive.
+与原来的\texttt{CHECK}指令相比，\texttt{CHECK-NEXT}指令不仅检查模式是否存在，还确保模式在前一个指令的行后面。
 
-\item Next, all the local variables and formal parameters are checked in my\_func1:
+\item 接下来，在\texttt{my\_func1}中检查所有的局部变量和形参:
 
 \begin{lstlisting}[style=styleJavaScript]
 // CHECK: my_func1 = ([[A0:[a-z]+0]],
@@ -133,23 +133,23 @@ const my_func1 = (input1, input2, input3) => {
 }
 \end{lstlisting}
 
-As highlighted in the preceding code, the CHECK-SAME directive was used to match the succeeding pattern in the exact same line. The rationale behind this is that FileCheck expected different CHECK directives to be matched in different lines. So, let's say part of the snippet was written like this:
+正如前面代码所示，\texttt{CHECK-SAME}指令用于在同一行中匹配后续的模式。这背后的原理是\texttt{FileCheck}期望不同的\texttt{CHECK}指令在不同的行中进行匹配。那么，假设这段代码的一部分是这样的:
 
 \begin{lstlisting}[style=styleJavaScript]
 // CHECK: let [[OUT:[a-zA-Z]+]] =
 // CHECK: [[A0]] + [[IM]] - [[A1]];
 \end{lstlisting}
 
-It will only match code that spread across two lines or more, as shown here:
+它将只匹配跨越两行或更多的代码，如下所示:
 
 \begin{lstlisting}[style=styleJavaScript]
 let BGHr =
 	r0 + jkF + r1;
 \end{lstlisting}
 
-It will throw an error otherwise. This directive is especially useful if you wish to avoid writing a super long line of checking statements, thus making the testing scripts more concise and readable.
+否则将抛出一个错误。如果想避免编写超长的检查语句行，可以使测试脚本更加简洁，并且可读性更强，这个指令就非常有用。
 
-\item Going into my\_func2, now, it's time to check if the literal numbers have been obfuscated properly. The checking statement here is designed to accept any instances/patterns except the original numbers. Therefore, the CHECK-NOT directive will be sufficient here:
+\item 进入\texttt{my\_func2}，现在检查文字数字是否正确混淆。这里的检查语句旨在接受除原始数字之外的任何实例/模式。因此，这里使用\texttt{CHECK-NOT}指令就足够了:
 
 \begin{lstlisting}[style=styleJavaScript]
 …
@@ -160,12 +160,12 @@ return my_func1(94,
 \end{lstlisting}
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}The first CHECK directive is required. This is because CHECK-NOT will not move the cursor from the line before return my\_func1(94. Here, CHECK-NOT will give a false negative without a CHECK directive to move the cursor to the correct line first.
+\hspace*{0.7cm}因为\texttt{CHECK-NOT}在返回\texttt{my\_func1(94}，所以第一个\texttt{CHECK}指令是必需的。这里，\texttt{CHECK-NOT}将给出假阴性结果，而没有\texttt{CHECK}指令将光标移动到正确的行。
 \end{tcolorbox}
 
-In addition, CHECK-NOT is pretty useful to express the concept of not <a specific pattern>…but <the correct pattern> when it's used with CHECK-SAME, as we mentioned earlier.
+此外，\texttt{CHECK-NOT}在表示\texttt{不<特定模式>…但<正确模式>}时，与\texttt{CHECK-SAME}一起使用会非常好用。
 
-For example, if the obfuscation rule states that all the literal numbers need to be obfuscated into their hexadecimal counterparts, then you can express the assertion of don't want to see 94… but want to see 0x5E/0x5e at the same place instead using the following code:
+例如，如果混淆规则声明所有的文字数字都需要混淆成十六进制数，那可以用下面的代码来表达\textit{“不想看到94…但是想看到0x5E或0x5e”}的断言:
 
 \begin{lstlisting}[style=styleJavaScript]
 …
@@ -176,30 +176,30 @@ return my_func1(94,
 				term2, factor2);
 \end{lstlisting}
 
-\item Now, only one obfuscation rule needs to be verified: when the js-obfuscator tool is supplied with an additional command-line option, -\,-shuffle-funcs, which effectively shuffles all top-level functions, we need to check whether the top-level functions maintain certain ordering, even after they have been shuffled. In JavaScript, functions are resolved when they're called. This means that cube, square, my\_func1, and my\_func2 can have an arbitrary ordering, as long as they're placed before the console.log(…) statement. To express this kind of flexibility, the CHECK-DAG directive can be pretty useful.
+\item 现在，只需要验证一个混淆规则：\texttt{js-obfuscator}工具提供了命令行选项\texttt{-\,-shuffle-funcs}，可以打乱所有顶级函数。这时，即使它们已经打乱了，也还需要检查顶级函数是否保持一定的顺序。在JavaScript中，函数在调用时解析。所以，\texttt{cube}、\texttt{square}、\texttt{my\_func1}和\texttt{my\_func2}可以有任意的顺序，只要放在\texttt{console.log(…)}语句之前。使用\texttt{CHECK-DAG}指令表达这种灵活性非常好用。
 
-Adjacent CHECK-DAG directives will match texts in arbitrary orders. For example, let's say we have the following directives:
+相邻的\texttt{CHECK-DAG}指令将以任意顺序匹配文本。例如，假设有以下指令:
 
 \begin{lstlisting}[style=styleJavaScript]
 // CHECK-DAG: 123
 // CHECK-DAG: 456
 \end{lstlisting}
 
-These directives will match the following content:
+这些指令将匹配以下内容:
 
 \begin{lstlisting}[style=styleJavaScript]
 123
 456
 \end{lstlisting}
 
-They will also match the following content:
+还将匹配以下内容:
 
 \begin{lstlisting}[style=styleJavaScript]
 456
 123
 \end{lstlisting}
 
-However, this freedom of ordering will not hold across either a CHECK or CHECKNOT directive. For example, let's say we have these directives:
+然而，这种排序自由在\texttt{CHECK}或\texttt{CHECK-NOT}指令中都不存在。例如，假设有这些指令:
 
 \begin{lstlisting}[style=styleJavaScript]
 // CHECK-DAG: 123
@@ -209,7 +209,7 @@ However, this freedom of ordering will not hold across either a CHECK or CHECKNO
 // CHECK-DAG: def
 \end{lstlisting}
 
-These directives will match the following text:
+这些指令将匹配以下文本:
 
 \begin{lstlisting}[style=styleJavaScript]
 456
@@ -219,7 +219,7 @@ def
 abc
 \end{lstlisting}
 
-However, they will not match the following text:
+但是，不匹配以下文本:
 
 \begin{lstlisting}[style=styleJavaScript]
 456
@@ -229,7 +229,7 @@ def
 abc
 \end{lstlisting}
 
-\item Back to our motivated example, the obfuscation rule can be checked by using the following code:
+\item 回到我们的例子，可以使用下面的代码来检查混淆规则:
 
 \begin{lstlisting}[style=styleJavaScript]
 …
@@ -241,9 +241,9 @@ abc
 console.log(my_func2(1,2));
 \end{lstlisting}
 
-However, function shuffling will only happen if an additional command-line option is supplied to the tool. Fortunately, FileCheck provides a way to multiplex different check suites into a single file, where each suite can define how it runs and separates the checks from other suites.
+但是，只有在向工具提供相应的命令行选项时，才会发生函数变换。不过，\texttt{FileCheck}提供了一种将多个不同检查套件集成到单个文件中的方法，其中每个套件可以自定义运行方式，并将检查与其他套件分离。
 
-\item The idea of the check prefix in FileCheck is pretty simple: you can create a check suite that runs independently with other suites. Instead of using the CHECK string, each suite will replace it with another string in all the directives mentioned earlier (CHECK-NOT and CHECK-SAME, to name a few), including CHECK itself, in order to distinguish it from other suites in the same file. For example, you can create a suite with the YOLO prefix so that that part of the example now looks as follows:
+\item \texttt{FileCheck}中检查前缀的思想非常简单：可以创建一个独立运行的检查套件。前面提到的所有指令(\texttt{CHECK-NOT}和\texttt{CHECK-SAME})中，每个套件将用相应字符串替换，包括\texttt{CHECK}本身，以区别于同一文件中的其他套件。例如，可以创建一个带有\texttt{YOL}O前缀的套件，这样这个例子(部分)现在看起来如下所示:
 
 \begin{lstlisting}[style=styleJavaScript]
 // YOLO: my_func2 = ([[A0:[a-z]+0]], [[A1:[a-z]+1]])
@@ -256,13 +256,13 @@ return my_func1(94,
 …
 \end{lstlisting}
 
-To use a custom prefix, it needs to be specified in the -\,-check-prefix command-line option. Here, the FileCheck command invocation will look like this:
+要使用自定义前缀，需要在\texttt{-\,-check-prefix}选项中指定。这里，像这样使用\texttt{FileCheck}命令:
 
 \begin{tcblisting}{commandshell={}}
 $ cat test.out.js | FileCheck --check-prefix=YOLO test.js
 \end{tcblisting}
 
-\item Finally, let's go back to our example. The last obfuscation rule can be solved by using an alternative prefix for those CHECK-DAG directives:
+\item 最后，回到我们的例子。最后一个混淆规则可以通过\texttt{CHECK-DAG}指令使用另一个前缀来解决:
 
 \begin{lstlisting}[style=styleJavaScript]
 …
@@ -275,7 +275,8 @@ console.log(my_func2(1,2));
 \end{lstlisting}
 
 \end{enumerate}
-This must be combined with the default check suite.  All the checks mentioned in this section can be run in two separate commands, as follows:
+
+这必须与默认的检查套件相结合。本节中提到的所有检查可以在两个独立的命令中运行，如下所示:
 
 \begin{tcblisting}{commandshell={}}
 # Running the default check suite
@@ -285,9 +286,9 @@ $ js-obfuscator --shuffle-funcs test.js | \
     FileCheck --check-prefix=CHECK-SHUFFLE test.js
 \end{tcblisting}
 
-In this section, we have shown some advanced and useful FileCheck skills through our example project. These skills provide you with different ways to write validation patterns and make your LIT test script more concise.
+本节中，我们通过示例项目展示了一些高级的\texttt{FileCheck}技能。这些技能提供了不同的方法来编写验证模式，并使LIT测试脚本更简洁。
 
-So far, we have been talking about the testing methodology, which runs tests in a shelllike environment (that is, in the ShTest LIT format). In the next section, we are going to introduce an alternative LIT framework – the TestSuite framework and testing format that was originated from the llvm-test-suite project – which provides a different kind of useful testing methodology for LIT.
+目前为止，我们一直在讨论测试方法，以及在类Shell环境(即以\texttt{ShTest} LIT格式)中运行测试。下一节中，我们将介绍替代LIT的框架——\texttt{llvm-test-suite}项目的\textit{测试套件}框架和测试格式——提供了一种与LIT\textit{不同的}的测试方法。
 
 
 
