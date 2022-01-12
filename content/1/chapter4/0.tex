@@ -1,0 +1,28 @@
+TableGen is a domain-specific language (DSL) that was originally developed in Low-Level Virtual Machine (LLVM) to express processors' instruction set architecture (ISA) and other hardware-specific details, similar to the GNU Compiler Collection's (GCC's) Machine Description (MD). Thus, many people learn TableGen when they're dealing with LLVM's backend development. However, TableGen is not just for describing hardware specifications: it is a general DSL useful for any tasks that involve non-trivial static and structural data. LLVM has also been using TableGen on parts outside the backend. For example, Clang has been using TableGen for its command-line options management. People in the community are also exploring the possibility to implement InstCombine rules (LLVM's peephole optimizations) in TableGen syntax.
+
+Despite TableGen's universality, the language's core syntax has never been widely understood by many new developers in this field, creating lots of copy-and-pasted boilerplate TableGen code in LLVM's code base since they're not familiar with the language itself. This chapter tries to shed a little bit of light on this situation and show the way to apply this amazing technique to a wide range of applications.
+
+The chapter starts with an introduction to common and important TableGen syntax, which prepares you for writing a delicious donut recipe in TableGen as a practice, culminating in a demonstration of TableGen's universality in the second part. Finally, the chapter will end with a tutorial to develop a custom emitter, or a TableGen backend, to convert those nerdy sentences in the TableGen recipe into normal plaintext descriptions that can be put in the kitchen.
+
+Here is the list of the sections we will be covering:
+
+\begin{itemize}
+\item Introduction to TableGen syntax
+\item Writing a donut recipe in TableGen
+\item Printing a recipe via the TableGen backend
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

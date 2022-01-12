@@ -1,0 +1,225 @@
+With the knowledge from previous sections, it's time to write our own donut recipe! We'll proceed as follows:
+
+\begin{enumerate}
+\item The first file to create is Kitchen.td. It defines the environment for cooking, including measuring units, equipment, and procedures, to name but a few aspects. We are going to start with the measuring units, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+class Unit {
+	string Text;
+	bit Imperial;
+}
+\end{lstlisting}
+
+Here, the Text field is the textual format showing on the recipe, and Imperial is just a Boolean flag marking whether this unit is imperial or metric. Each weight or volume unit will be a record inheriting from this class—have a look at the following code snippet for an example of this:
+
+\begin{lstlisting}[style=styleCXX]
+def gram_unit : Unit {
+	let Imperial = false;
+	let Text = "g";
+}
+def tbsp_unit : Unit {
+	let Imperial = true;
+	let Text = "tbsp";
+}
+\end{lstlisting}
+
+There are plenty of measuring units we want to create, but the code is already pretty lengthy. A way to simplify and make it more readable is by using class template arguments, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+class Unit<bit imperial, string text> {
+	string Text = text;
+	bit Imperial = imperial;
+}
+def gram_unit : Unit<false, "g">;
+def tbsp_unit : Unit<true, "tbsp">;
+\end{lstlisting}
+
+In contrast to C++'s template arguments, the template arguments in TableGen only accept concrete values. They're just an alternative way to assign values to fields.
+
+\item Since TableGen doesn't support floating-point numbers, we need to define some way to express numberings, such as 1 and $\frac{1}{4}$ cups or 94.87g of flour. One solution is to use a fixed point, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+class FixedPoint<int integral, int decimal = 0> {
+	int Integral = integral;
+	int DecimalPoint = decimal;
+}
+def one_plus_one_quarter : FixedPoint<125, 2>; // Shown
+as 1.25
+\end{lstlisting}
+
+With the Integral and DecimalPoint fields mentioned, the value represented by this FixedPoint class is equal to the following formula:
+
+Integral * 10\^(-DecimalPoint)
+
+Since $\frac{1}{4}$, $\frac{1}{2}$, and $\frac{3}{4}$ are apparently commonly used in measuring (especially for imperial units such as a US cup), it's probably a good idea to use a helper class to create them, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+class NplusQuarter<int n, bits<2> num_quarter> :
+FixedPoint<?, 2> {…}
+def one_plus_one_quarter : NplusQuarter<1,1>; // Shown as
+1.25
+\end{lstlisting}
+
+This will make expressing quantities such as N and $\frac{1}{4}$ cups or N and $\frac{1}{2}$ cups a lot easier.
+
+TableGen classes also have inheritance—a class can inherit one or more classes. Since TableGen doesn't have the concept of member functions/methods, inheriting class is simply just integrating its fields.
+
+\item To implement NplusQuarter, especially the conversion from the NplusQuarter class template parameters to that of FixedPoint, we need some simple arithmetic calculations, which is where TableGen's bang operators come into place, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+class NplusQuarter<int n, bits<2> num_quarter> :
+FixedPoint<?, 2> {
+	int Part1 = !mul(n, 100);
+	int Part2 = !mul(25, !cast<int>(num_quarter{1...0}));
+	let Integral = !add(Part1, Part2);
+}
+\end{lstlisting}
+
+Another interesting syntax that appeared is the bit extraction (or slicing) on the num\_quarter variable. By writing num\_quarter{1…0}, this gives you a bits value that is equal to the 0th and first bit of num\_quarter. There are some other variants of this technique. For example, it can slice a non-continuous range of bits, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+num_quarter{8…6,4,2…0}
+\end{lstlisting}
+
+Or, it can extract bits in reversed ordering, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+num_quarter{1…7}
+\end{lstlisting}
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
+\hspace*{0.7cm}You might wonder why the code needs to extract the smallest 2 bits explicitly even it has declared that num\_quarter has a width of 2 bits (the bits<2> type). It turned out that for some reason, TableGen will not stop anyone from assigning values greater than 3 into num\_quarter, like this: def x : NplusQuarter<1,999>.
+\end{tcolorbox}
+
+\item With the measuring units and number format, we can finally deal with the ingredients needed for this recipe. First, let's use a separated file, Ingredients.td, to store all the ingredient records. To use all the things mentioned earlier, we can import Kitchen.td by using the include syntax, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+// In Ingredients.td…
+include "Kitchen.td"
+\end{lstlisting}
+
+Then, a base class of all ingredients is created to carry some common fields, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+class IngredientBase<Unit unit> {
+	Unit TheUnit = unit;
+	FixedPoint Quantity = FixedPoint<0>;
+}
+\end{lstlisting}
+
+Each kind of ingredient is represented by a class derived from IngredientBase, with parameters to specify the quantity needed by a recipe, and the unit used to measure this ingredient. Take milk, for example, as shown in the following code snippet:
+
+\begin{lstlisting}[style=styleCXX]
+class Milk<int integral, int num_quarter> :
+IngredientBase<cup_unit> {
+	let Quantity = NplusQuarter<integral, num_quarter>;
+}
+\end{lstlisting}
+
+The cup\_unit put at the template argument for IngredientBase tells us that milk is measured by a US cup unit, and its quantity is to be determined later by the Milk class template arguments.
+
+When writing a recipe, each required ingredient is represented by a record created from one of these ingredient class types:
+
+\begin{lstlisting}[style=styleCXX]
+def ingredient_milk : Milk<1,2>; // Need 1.5 cup of milk
+\end{lstlisting}
+
+\item Some ingredients, however, always come together—for example, lemon peel and lemon juice, egg yolk, and egg white. That is, if you have two egg yolks, then there must be two servings of egg white. However, if we need to create a record and assign a quantity for each of the ingredients one by one, there will be a lot of duplicate code. A more elegant way to solve this problem is by using TableGen's multiclass syntax.
+
+Taking the following egg example, assume we want to create WholeEgg, EggWhite, and EggYolk records at once with the same quantity, and define the multiclass first:
+
+\begin{lstlisting}[style=styleCXX]
+multiclass Egg<int num> {
+	def _whole : WholeEgg {
+		let Quantity = FixedPoint<num>;
+	}
+	def _yolk : EggYolk {
+		let Quantity = FixedPoint<num>;
+	}
+	def _white : EggWhite {
+		let Quantity = FixedPoint<num>;
+	}
+}
+\end{lstlisting}
+
+When writing the recipe, use the defm syntax to create multiclass records, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+defm egg_ingredient : Egg<3>;
+\end{lstlisting}
+
+After using defm, three records will  actually be created: egg\_ingredient\_whole, egg\_ingredient\_yolk, and egg\_ingredient\_white, inheriting from WholeEgg, EggYolk, and EggWhite, respectively.
+
+\item Finally, we need a way to describe the steps to make a donut. Many recipes have some preparation steps that don't need to be done in a specific order. Take the donut recipe here, for example: preheating the oil can be done at any time before the donuts are ready to be fried. Thus, it might be a good idea to express baking steps in a dag type.
+
+Let's first create the class to represent a baking step, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+class Step<dag action, Duration duration, string custom_
+format> {
+	dag Action = action;
+	Duration TheDuration = duration;
+	string CustomFormat = custom_format;
+	string Note;
+}
+\end{lstlisting}
+
+The Action field carries the baking instructions and information about the ingredients used. Here is an example:
+
+\begin{lstlisting}[style=styleCXX]
+def mix : Action<"mix",…>;
+def milk : Milk<…>;
+def flour : Flour<…>;
+def step_mixing : Step<(mix milk, flour), …>;
+\end{lstlisting}
+
+Action is just a class used for describing movements. The following snippet represents the fact that step\_mixing2 is using the outcome from step\_mixing (maybe a raw dough) and mixing it with butter:
+
+\begin{lstlisting}[style=styleCXX]
+…
+def step_mixing : Step<(mix milk, flour), …>;
+def step_mixing2 : Step<(mix step_mixing, butter), …>;
+\end{lstlisting}
+
+Eventually, all of the Step records will form a DAG, in which a vertex will either be a step or an ingredient record.
+
+We're also annotating our dag operator and operand with tags, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+def step_mixing2 : Step<(mix:$action step_mixing:$dough, butter)>
+\end{lstlisting}
+
+In the previous section, Introduction to TableGen syntax, we said that these dag tags have no immediate effect in TableGen code, except affecting how TableGen backends handle the current record—for example, if we have a string type field, CustomFormat, in the Step class, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+def step_prep : Step<(heat:$action fry_oil:$oil, oil_
+temp:$temp)> {
+	let CustomFormat = "$action the $oil until $temp";
+}
+\end{lstlisting}
+
+With the field content shown, we can replace \$action, \$oil, and \$temp in the string with the textual representation of those records, generating a string such as heat the peanut oil until it reaches 300 F.
+
+\end{enumerate}
+
+And that wraps up this section of this chapter. In the next section, the goal is to develop a custom TableGen backend to take the TableGen version recipe here as input and print out a normal plaintext recipe.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
