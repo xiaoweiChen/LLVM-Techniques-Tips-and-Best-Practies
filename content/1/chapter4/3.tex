@@ -1,7 +1,7 @@
-With the knowledge from previous sections, it's time to write our own donut recipe! We'll proceed as follows:
+有了前面部分的知识，是时候编写我们自己的甜甜圈了!我们将按照以下步骤进行:
 
 \begin{enumerate}
-\item The first file to create is Kitchen.td. It defines the environment for cooking, including measuring units, equipment, and procedures, to name but a few aspects. We are going to start with the measuring units, as follows:
+\item 要创建的第一个文件是\texttt{Kitchen.td}。定义了烹饪环境，包括测量单位、设备和程序，仅举几个方面。我们将从测量单位开始:
 
 \begin{lstlisting}[style=styleCXX]
 class Unit {
@@ -10,7 +10,7 @@ class Unit {
 }
 \end{lstlisting}
 
-Here, the Text field is the textual format showing on the recipe, and Imperial is just a Boolean flag marking whether this unit is imperial or metric. Each weight or volume unit will be a record inheriting from this class—have a look at the following code snippet for an example of this:
+这里，Text字段是菜谱上显示的文本格式，Imperial只是一个布尔标志，用于标记这个单位是英制还是公制单位。每个重量或体积单元将是继承自这个类的一个记录——下面的代码是一个例子:
 
 \begin{lstlisting}[style=styleCXX]
 def gram_unit : Unit {
@@ -23,7 +23,7 @@ def tbsp_unit : Unit {
 }
 \end{lstlisting}
 
-There are plenty of measuring units we want to create, but the code is already pretty lengthy. A way to simplify and make it more readable is by using class template arguments, as follows:
+我们需要创建许多度量单位，但是代码已经相当长了。简化和使它更可读的方法是使用类模板参数，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 class Unit<bit imperial, string text> {
@@ -34,9 +34,9 @@ def gram_unit : Unit<false, "g">;
 def tbsp_unit : Unit<true, "tbsp">;
 \end{lstlisting}
 
-In contrast to C++'s template arguments, the template arguments in TableGen only accept concrete values. They're just an alternative way to assign values to fields.
+与\texttt{C++}的模板参数不同，TableGen中的模板参数只接受具体的值，只是为字段赋值的另一种方法。
 
-\item Since TableGen doesn't support floating-point numbers, we need to define some way to express numberings, such as 1 and $\frac{1}{4}$ cups or 94.87g of flour. One solution is to use a fixed point, as follows:
+\item 由于TableGen不支持浮点数，需要定义一些方法来表示数字，例如\textbf{1和$\frac{1}{4}$杯}或\textbf{94.87g的面粉}。一种解决办法是使用定点数，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 class FixedPoint<int integral, int decimal = 0> {
@@ -47,11 +47,11 @@ def one_plus_one_quarter : FixedPoint<125, 2>; // Shown
 as 1.25
 \end{lstlisting}
 
-With the Integral and DecimalPoint fields mentioned, the value represented by this FixedPoint class is equal to the following formula:
+提到\texttt{Integral}和\texttt{DecimalPoint}字段，\texttt{FixedPoint}类表示的值等于下面的公式:
 
-Integral * 10\^(-DecimalPoint)
+\textit{Integral * 10\^(-DecimalPoint)}
 
-Since $\frac{1}{4}$, $\frac{1}{2}$, and $\frac{3}{4}$ are apparently commonly used in measuring (especially for imperial units such as a US cup), it's probably a good idea to use a helper class to create them, as follows:
+$\frac{1}{4}$、$\frac{1}{2}$和$\frac{3}{4}$显然是常用的测量单位(特别是英制单位，如美制杯)，使用一个helper类来创建它们可能是个好主意:
 
 \begin{lstlisting}[style=styleCXX]
 class NplusQuarter<int n, bits<2> num_quarter> :
@@ -60,11 +60,11 @@ def one_plus_one_quarter : NplusQuarter<1,1>; // Shown as
 1.25
 \end{lstlisting}
 
-This will make expressing quantities such as N and $\frac{1}{4}$ cups or N and $\frac{1}{2}$ cups a lot easier.
+这将使表示数量，如N和$\frac{1}{4}$ 杯或N和$\frac{1}{2}$杯变得更加容易。
 
-TableGen classes also have inheritance—a class can inherit one or more classes. Since TableGen doesn't have the concept of member functions/methods, inheriting class is simply just integrating its fields.
+TableGen类也有继承——一个类可以继承一个或多个类。由于TableGen没有成员函数/方法的概念，继承类只是简单地集成字段。
 
-\item To implement NplusQuarter, especially the conversion from the NplusQuarter class template parameters to that of FixedPoint, we need some simple arithmetic calculations, which is where TableGen's bang operators come into place, as follows:
+\item 为了实现\texttt{NplusQuarter}，特别是从\texttt{NplusQuarter}类模板参数到\texttt{FixedPoint}的转换，我们需要一些简单的算术计算，这就是使用TableGen的叹号操作符的位置:
 
 \begin{lstlisting}[style=styleCXX]
 class NplusQuarter<int n, bits<2> num_quarter> :

@@ -1,25 +1,24 @@
 
+本节简要介绍了重要和常见的TableGen语法，提供了动手编写所需的所有基本知识，在下一节中会提供使用TableGen编写甜甜圈的食谱。
 
-This section serves as a quick tour of all the important and common TableGen syntax, providing all the essential knowledge to get hands-on, writing a donut recipe in TableGen in the next section.
+TableGen是一种特定于领域的编程语言，可以对特制的数据布局进行建模。尽管是一种编程语言，但做的事情与传统语言完全不同。\textbf{传统编程语言}通常描述对(输入)数据执行的操作，如何与环境交互，以及它们如何生成结果，而不考虑采用的编程范式(命令式、函数式、事件驱动……)。相比之下，TableGen的行为几乎没有任何描述。
 
-TableGen is a domain-specific programming language used for modeling custom data layouts. Despite being a programming language, it does something quite different from conventional languages. Conventional programming languages usually describe actions performed on the (input) data, how they interact with the environment, and how they generate results, regardless of the programming paradigms (imperative, functional, eventdriven…) you adopt. TableGen, in contrast, barely describes any actions.
+TableGen的描述仅用于静态数据结构。首先，开发人员定义所需数据结构的布局(本质上就是包含许多字段的表)。然后，填充/初始化字段时，需要立即将数据填充到布局中。后一部分可能是TableGen的独特之处：许多编程语言或框架提供了设计特定于领域的数据结构的方法(例如，谷歌的\textbf{Protocol Buffers})，但在这些场景中，数据通常是\textbf{动态}填充的(主要是在使用DSL的代码中)。
 
-TableGen is designed only to describe structural static data. First, developers define the layout—which is essentially just a table with many fields—of their desired data structure. They then need to fill data into those layouts right away as most of the fields are populated/initialized. The latter part is probably what makes TableGen unique: many programming languages or frameworks provide ways to design your domain-specific data structures (for example, Google's Protocol Buffers), but in those scenarios, data is usually filled in dynamically, mostly in the code that consumes the DSL part.
+\textbf{结构化查询语言(SQL)}在许多方面与TableGen相同:SQL和TableGen(仅)都处理结构化数据，并有定义布局的方法。在SQL中是\texttt{TABLE;}在TableGen中\texttt{class}，这将在本节后面介绍。然而，除了精心设计布局之外，SQL还提供了更多的功能,还可以查询(实际上，这就是它名字的由来:\textbf{结构化查询语言})和动态更新数据，这在TableGen中是不可以的。然而，在本章的后面，您将看到TableGen提供了一个很好的框架来灵活地处理和解释这个(TableGen定义的)数据。
 
-Structured Query Language (SQL) shares many aspects with TableGen: both SQL and TableGen (only) handle structural data and have a way to define the layout. In SQL, it's TABLE; and in TableGen, it's class, which will be introduced later on in this section. However, SQL provides much more functions other than crafting the layout. It can also query (actually, that's where its name came from: Structured Query Language) and update data dynamically, which are absent in TableGen. However, later in this chapter, you will see that TableGen provides a nice framework to flexibly process and interpret this TableGen-defined data.
-
-We'll now introduce four important TableGen constructions, as follows:
+现在我们将介绍四种重要的TableGen结构:
 
 \begin{itemize}
-\item Layout and records
-\item Bang operators
-\item Multiclass
-\item The Directed-Acyclic Graph (DAG) data type
+\item 布局和记录
+\item 叹号操作符
+\item 多记录
+\item \textbf{有向无环图(DAG)}数据类型
 \end{itemize}
 
-\subsubsubsection{4.2.1\hspace{0.2cm}Layout and records}
+\subsubsubsection{4.2.1\hspace{0.2cm}布局和记录}
 
-Given the fact that TableGen is just a more fancy and expressive way to describe structural data, it's pretty straightforward to think that there is a primitive representation for the data's layout, and representation for the instantiated data. The layout is realized by the class syntax, as shown in the following code snippet:
+考虑到TableGen只是描述结构化数据的一种奇特、富有表现力的方式，数据布局和实例化数据都有一个原始的表示。布局通过类语法实现，如下面的代码所示:
 
 \begin{lstlisting}[style=styleCXX]
 class Person {
@@ -28,15 +27,15 @@ class Person {
 }
 \end{lstlisting}
 
-As shown here, a class is similar to a struct in C and many other programming languages, which only contains a group of data fields. Each field has a type, which can be any of the primitive types (int, string, bit, and so on) or another user-defined class type. A field can also assign a default value such as John Smith.
+正如上所示，class类似于C和许多其他编程语言中的结构体，只包含一组数据字段。每个字段都有一个类型，可以是任何基本类型(\texttt{int}、\texttt{string}、\texttt{bit}等)或其他用户定义的类类型。字段还可以指定一个默认值，比如\texttt{John Smith}。
 
-After looking a layout, it's time to create an instance (or a record, in TableGen's terms), out of it, as follows:
+了解了布局之后，创建一个实例(对TableGen来说就是一个记录)，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 def john_smith : Person;
 \end{lstlisting}
 
-Here, john\_smith is a record using Person as a template so that it also has two fields— Name and Age—with the Name field filled with the value John Smith. This looks pretty straightforward, but recall that TableGen should define static data and that most fields should be filled with values. Also, in this case, the Age field is still left uninitialized. You can populate its value by overriding with a bracket closure and statements within, as follows:
+这里，\texttt{john\_smith}是一个使用\texttt{Person}作为模板的记录，因此也有两个字段- \texttt{Name}和\texttt{Age}——\texttt{Name}字段用值\texttt{john Smith}填充。这看起来非常简单，但回想一下TableGen应该定义静态数据，并且大多数字段应该用值填充。现在，\texttt{Age}字段还没有初始化。这里可以用括号闭包和语句覆盖它的值，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 def john_smith : Person {
@@ -44,7 +43,7 @@ def john_smith : Person {
 }
 \end{lstlisting}
 
-You can even define new fields specifically for the john\_smith record, as follows:
+甚至可以为\texttt{john\_smith}记录定义新的字段:
 
 \begin{lstlisting}[style=styleCXX]
 def john_smith : Person {
@@ -53,11 +52,11 @@ def john_smith : Person {
 }
 \end{lstlisting}
 
-Just be aware that you can only override fields (using the let keyword) that have been declared, just as with many other programming languages.
+注意，只能覆盖(使用\texttt{let}关键字)声明过的字段。
 
-\subsubsubsection{4.2.1\hspace{0.2cm}Bang operators}
+\subsubsubsection{4.2.1\hspace{0.2cm}叹号操作符}
 
-Bang operators are a group of functions performing simple tasks such as basic arithmetic or casting on values in TableGen. Here is a simple example of converting kilograms to grams:
+叹号操作符是一组执行简单任务的函数，例如在TableGen中执行基本的算术或对值进行强制转换。下面是一个简单的把公斤换算成克的例子:
 
 \begin{lstlisting}[style=styleCXX]
 class Weight<int kilogram> {
@@ -65,47 +64,52 @@ class Weight<int kilogram> {
 }
 \end{lstlisting}
 
-Common operators include arithmetic and bitwise operators (to name but a few), and some of these are outlined here:
+常用的操作符包括算术操作符和位操作符(仅举几个例子)，其中一些在这里概述:
 
 \begin{itemize}
-\item !add(a, b): For arithmetic addition
-\item !sub(a, b): For arithmetic subtraction
-\item !mul(a, b): For arithmetic multiplication
-\item !and(a, b): For logical AND operations
-\item !or(a, b): For logical OR operations
-\item !xor(a, b): For logical XOR operations
+\ttfamily
+\item !add(a, b): 算术加法
+\item !sub(a, b): 算术减法
+\item !mul(a, b): 算术乘法
+\item !and(a, b): 逻辑和
+\item !or(a, b): 逻辑或
+\item !xor(a, b): 逻辑异或
 \end{itemize}
 
-We also use conditional operators, and a few are outlined here:
+使用条件运算符的情况，下面列出了一些:
 
 \begin{itemize}
-\item !ge(a, b): Returns 1 if a >= b, and 0 otherwise
-\item !gt(a, b): Returns 1 if a > b, and 0 otherwise
-\item !le(a, b): Returns 1 if a <= b, and 0 otherwise
-\item !lt(a, b): Returns 1 if a < b, and 0 otherwise
-\item !eq(a, b): Returns 1 if a == b, and 0 otherwise
+\ttfamily
+\item !ge(a, b): a大于等于b时返回1，否则返回0
+\item !gt(a, b): a大于b时返回1，否则返回0
+\item !le(a, b): a小于等于b时返回1，否则返回0
+\item !lt(a, b): a小于b时返回1，否则返回0
+\item !eq(a, b): a等于b时返回1，否则返回0
 \end{itemize}
 
-Other interesting operators include the following:
+其他有趣的操作符包括:
 
 \begin{itemize}
-\item !cast<type>(x): This operator performs type casting on the x operand, according to the type parameter. In cases where the type is a numerical type, such as with int or bits, this performs normal arithmetic type casting. In some special cases, we have the following scenarios:
+\ttfamily
 
-If type is string and x is a record, this returns the record's name.
+\item !cast<type>(x): 该操作符根据类型参数对x操作数执行类型转换。在类型为数值类型的情况下，例如使用int或bits，这将执行普通的算术类型转换。在一些特殊情况下，假设有以下场景:
 
-If x is a string, it is treated as the name of a record. TableGen will look up all the record definitions so far and cast the one with the name of x and return it with a type that matches the type parameter.
+如果type是string而x是一个记录，则返回记录的名称。
 
-\item !if(pred, then, else): This operator returns the then expression if pred is 1, and returns the else expression otherwise.
-\item !cond(cond1 : val1, cond2 : val2, …, condN : valN): This operator is an enhanced version of the !if operator. It will continuously evaluate cond1…condN until one of the expressions returns 1, before returning its associated val expression.
+如果x是一个string，将视为一个记录的名称。TableGen将查找到目前为止的所有记录定义，并对名称为x的记录进行强制转换，并返回与类型参数匹配的类型。
+
+\item !if(pred, then, else): 如果pred为1，该操作符返回then表达式，否则返回else表达式。
+
+\item !cond(cond1 : val1, cond2 : val2, …, condN : valN): 此操作符是!if操作符的增强版本。在返回其关联的val表达式之前，将连续计算cond1…condN，直到其中一个表达式返回1。
 \end{itemize}
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}Unlike functions, which are evaluated during runtime, bang operators are more like macros, which are evaluated during build time—or in TableGen's terminology, when those syntaxes are processed by TableGen backends.
+\hspace*{0.7cm}与运行时求值的函数不同，叹号操作符更像宏，在构建时求值——或者用TableGen的术语来说，当这些语法由TableGen后端处理时进行求值。
 \end{tcolorbox}
 
-\subsubsubsection{4.2.3\hspace{0.2cm}Multiclass}
+\subsubsubsection{4.2.3\hspace{0.2cm}多记录}
 
-There are many cases where we want to define multiple records at once. For example, the following snippet tries to create auto part records for multiple cars:
+许多情况下，我们想要同时定义多个记录。例如，下面的代码片段尝试为多辆车创建汽车部件记录:
 
 \begin{lstlisting}[style=styleCXX]
 class AutoPart<int quantity> {…}
@@ -120,7 +124,7 @@ def car2_wheels : AutoPart<4>;
 …
 \end{lstlisting}
 
-We can further simplify these by using the multiclass syntax, as follows:
+我们可以通过使用多记录语法进一步简化，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 class AutoPart<int quantity> {…}
@@ -133,36 +137,37 @@ multiclass Car<int quantity> {
 }
 \end{lstlisting}
 
-When creating record instances, use the defm syntax instead of def, as follows:
+创建记录实例时，使用defm语法而不是def，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 defm car1 : Car<1>;
 defm car2 : Car<1>;
 \end{lstlisting}
 
-Thus, at the end, it will still generate records with names such as car1\_fuel\_tank, car1\_engine, car2\_fuel\_tank, and so on.
+因此，仍然会生成名称为\texttt{car1\_fuel\_tank}、\texttt{car1\_engine}、\texttt{car2\_fuel\_tank}的记录。
 
-Despite having class in its name, multiclass has nothing to do with a class. Instead of describing the layout of a record, multiclass acts as a template to generate records. Inside a multiclass template are the prospective records to be created and the records' name suffix after the template is expanded. For example, the defm car1 : Car<1> directive in the preceding snippet will eventually be expanded into three def directives, as follows:
+尽管名称中有\texttt{class}，但\texttt{multiclass}与\texttt{class}没有任何关系。\texttt{multiclass}描述的不是记录的布局，而是作为模板来生成记录。在一个\texttt{multiclass}模板中是要创建的预期记录，以及在模板展开之后的记录名称后缀。例如，前面代码段中\texttt{的defm car1: Car<1>}指令最终扩展为三个\texttt{def}指令:
 
 \begin{itemize}
+\ttfamily
 \item def car1\_fuel\_tank : AutoPart<1>;
 \item def car1\_engine : AutoPart<1>;
 \item def car1\_wheels : AutoPart<!mul(1, 4)>;
 \end{itemize}
 
-As you can see in the preceding list, the name suffixes we found inside multiclass (for instance, \_fuel\_tank) was concatenated with the name appearing after defm—car1 in this case. Also, the quantity template argument from multiclass, was also instantiated into every expanded record.
+正如前面的列表中看到的，会发现在multiclass中的名称后缀(例如，\texttt{\_fuel\_tank})与本例中出现在发现\texttt{defm-car1}之后的名称连接在一起。此外，来自\texttt{multiclass}的\texttt{quantity}模板参数也会实例化到每个扩展的记录中。
 
-In short, multiclass tries to extract common parameters from multiple record instances and make it possible to create them at once.
+简而言之，\texttt{multiclass}会尝试从多个记录实例中提取公共参数，并使一次性创建这些参数成为可能。
 
-\subsubsubsection{4.2.4\hspace{0.2cm}The DAG data type}
+\subsubsubsection{4.2.4\hspace{0.2cm}有向无环图(DAG)数据类型}
 
-In addition to conventional data types, TableGen has a pretty unique first-class type: the dag type that is used for expressing DAG instances. To create a DAG instance, you can use the following syntax:
+除了常规的数据类型之外，TableGen还有一个非常独特的第一类类型:\texttt{dag}类型，用于表示DAG实例。要创建一个DAG实例，你可以使用以下语法:
 
 \begin{lstlisting}[style=styleCXX]
 (operator operand1, operand2,…, operandN)
 \end{lstlisting}
 
-While the operator can only be a record instance, operands (operand1…operandN) can have arbitrary types. Here is an example of trying to model an arithmetic expression, x * 2 + y + 8 * z:
+虽然操作符只能是一个记录实例，但操作数\texttt{(operand1…operandN)}可以是任意类型。下面是一个尝试建模算术表达式x * 2 + y + 8 * z的例子:
 
 \begin{lstlisting}[style=styleCXX]
 class Variable {…}
@@ -184,7 +189,7 @@ def tmp2 : Expression<(mul 8, z)>;
 def result : Expression<(plus tmp1, tmp2, y)>;
 \end{lstlisting}
 
-Optionally, you can associate operator and/or each operand with a tag, as follows:
+(可选)可以将操作符和/或每个操作数与标记相关联，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 …
@@ -194,9 +199,9 @@ def result : Expression<(plus tmp1:$term1, tmp2:$term2,
 y:$term3)>;
 \end{lstlisting}
 
-A tag always starts with a dollar sign, \$, followed by a user-defined tag name. These tags provide a logical description of each dag component and can be useful when processing DAGs in the TableGen backend.
+标签总是以美元符号\texttt{\$}开头，然后是用户定义的标签名。这些标记提供了每个DAG组件的逻辑描述，在TableGen后端处理DAG时非常有用。
 
-In this section, we have gone through the principal components of the TableGen language and introduced some essential syntax. In the next section, we are going to get hands-on, writing a delicious donut recipe using TableGen.
+本节中，介绍了TableGen语言的主要组件，并介绍了一些基本的语法。下一节中，将动手使用TableGen编写“美味的甜甜圈”。
 
 
 

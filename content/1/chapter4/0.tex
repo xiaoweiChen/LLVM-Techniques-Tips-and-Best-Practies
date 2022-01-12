@@ -1,15 +1,15 @@
-TableGen is a domain-specific language (DSL) that was originally developed in Low-Level Virtual Machine (LLVM) to express processors' instruction set architecture (ISA) and other hardware-specific details, similar to the GNU Compiler Collection's (GCC's) Machine Description (MD). Thus, many people learn TableGen when they're dealing with LLVM's backend development. However, TableGen is not just for describing hardware specifications: it is a general DSL useful for any tasks that involve non-trivial static and structural data. LLVM has also been using TableGen on parts outside the backend. For example, Clang has been using TableGen for its command-line options management. People in the community are also exploring the possibility to implement InstCombine rules (LLVM's peephole optimizations) in TableGen syntax.
+\textbf{TableGen}是一种\textbf{领域特定语言(DSL)}，最初在\textbf{底层虚拟机(LLVM)}中开发，用来表达处理器的\textbf{指令集架构(ISA)}和其他硬件特性，类似于\textbf{GNU编译器集合(GCC)的机器描述(MD)}。因此，许多人在学习LLVM后端开发时，便对对TableGen进行了学习。然而，TableGen并不仅用于描述硬件规范：它是一种通用的DSL，适用于涉及重要静态和结构化数据的任务。LLVM在后台之外地方也使用了TableGen。例如，Clang使用TableGen进行命令行选项管理。社区也在探索在TableGen语法中实现\textbf{InstCombine}规则(LLVM的\textbf{窥视孔优化})的可能性。
 
-Despite TableGen's universality, the language's core syntax has never been widely understood by many new developers in this field, creating lots of copy-and-pasted boilerplate TableGen code in LLVM's code base since they're not familiar with the language itself. This chapter tries to shed a little bit of light on this situation and show the way to apply this amazing technique to a wide range of applications.
+尽管TableGen具有通用性，但核心语法从未被许多该领域的新开发人员所理解，因为不熟悉该语言本身，所以在LLVM的代码库中创建了大量复制粘贴的TableGen模板代码。本章试图说清楚这种情况，并展示如何将这种傲人的技术应用到实际应用中。
 
-The chapter starts with an introduction to common and important TableGen syntax, which prepares you for writing a delicious donut recipe in TableGen as a practice, culminating in a demonstration of TableGen's universality in the second part. Finally, the chapter will end with a tutorial to develop a custom emitter, or a TableGen backend, to convert those nerdy sentences in the TableGen recipe into normal plaintext descriptions that can be put in the kitchen.
+本章首先介绍了常见和重要的TableGen语法，这为您在TableGen中编写“美味的甜甜圈”做准备，在第二部分演示了TableGen的通用性。最后，本章将以开发自定义“发射器”或\textbf{TableGen后端}结束，本章会将TableGen中那些乏味的句子转换成厨房用语进行描述。
 
-Here is the list of the sections we will be covering:
+本章中，我们将讨论以下主题:
 
 \begin{itemize}
-\item Introduction to TableGen syntax
-\item Writing a donut recipe in TableGen
-\item Printing a recipe via the TableGen backend
+\item 介绍TableGen的语法
+\item 用TableGen做甜甜圈
+\item 用TableGen后端打印食谱
 \end{itemize}
 
 

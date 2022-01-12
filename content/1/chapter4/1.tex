@@ -1,14 +1,14 @@
-This chapter focuses on one tool in the utils folder: llvm-tblgen. To build it, launch the following command:
+本章主要关注\texttt{utils}文件夹中的一个工具:l\texttt{lvm-tblgen}。使用以下命令对其进行构建:
 
 \begin{tcblisting}{commandshell={}}
 $ ninja llvm-tblgen
 \end{tcblisting}
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}If you chose to build llvm-tblgen in Release mode regardless of the global build type, using the LLVM\_OPTIMIZED\_TABLEGEN CMake variable introduced in the first chapter, you might want to change that setting since it's always better to have a debug version of llvm-tblgen in this chapter.
+\hspace*{0.7cm}如果选择在\textbf{Release模式}下构建\texttt{llvm-tblgen}，而不管全局构建类型如何，可以使用第1章中介绍的CMake变量\texttt{LLVM\_OPTIMIZED\_TABLEGEN}。你可能想要更改该设置，因为在本章中使用Debug版本的\texttt{llvm-tblgen}会更好一些。
 \end{tcolorbox}
 
-All of the source code in this chapter can be found in this GitHub repository: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-andBest-Practices-Clang-and-Middle-End-Libraries/tree/main/
+本章中所有的源代码都可以在GitHub库中找到: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-andBest-Practices-Clang-and-Middle-End-Libraries/tree/main/
 Chapter04}.
 
 
