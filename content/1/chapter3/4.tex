@@ -1,17 +1,18 @@
 
-In the previous sections, we learned how regression tests were performed in LLVM. More specifically, we looked at the ShTest testing format (recalling the config. test\_format = lit.formats.ShTest(…) line), which basically runs end-to-end tests in a shell script fashion. The ShTest format provides more flexibility when it comes to validating results since it can use the FileCheck tool we introduced in the previous section, for example.
+在前几节中，了解了如何在LLVM中执行回归测试，研究了\texttt{ShTest}的测试格式(\texttt{config.
+test\_format\_format = lit.formats.ShTest(…)line)}，它以shell脚本的方式运行端到端测试。例如，在验证结果时，\texttt{ShTest}格式提供了更多的灵活性，因为它可以使用\texttt{FileCheck}工具。
 
-This section is going to introduce another kind of testing format: TestSuite. The TestSuite format is part of the llvm-test-suite project – a collection of test suites and benchmarks created for testing and benchmarking LLVM. Similar to ShTest, this LIT format is also designed to run end-to-end tests. However, TestSuite aims to make developers' lives easier when they want to integrate existing executable-based test suites or benchmark codebases. For example, if you want to use the famous SPEC benchmark as one of your test suites, all you need to do is add a build description and the expected output in plain text. This is also useful when your testing logic cannot be expressed using a textual testing script, as we saw in previous sections.
+本节将介绍另一种测试格式:\textbf{TestSuite}。TestSuite格式是\texttt{llvm-test-suite}的一部分，是为LLVM测试和基准测试创建的测试套件和基准测试的集合。与\texttt{ShTest}类似，这种LIT格式也用来运行端到端测试。当开发人员想要集成现有基于可执行的测试套件或基准代码库时，TestSuite会使这种工作完成的更加轻松。例如，若想使用著名的\textbf{SPEC基准}作为测试套件，那么需要做的就是添加一个构建描述和期望的纯文本输出。当测试逻辑不能用\textit{文本测试脚本}表达时，这也可以用(正如在前面几节中了解的那样）。
 
-In this section, we will learn how to import an existing test suite or benchmark codebase into the llvm-test-suite project.
+本节中，将了解如何将一个现有的测试套件或基准代码库导入到llvm-test-suite项目中。
 
-\subsubsubsection{3.4.1\hspace{0.2cm}Preparing for our example project}
+\subsubsubsection{3.4.1\hspace{0.2cm}准备示例项目}
 
-First, please follow the instructions at the beginning of this chapter to build llvm-testsuite.
+首先，请按照本章开头的说明来构建\texttt{llvm-test-suite。}
 
-The rest of the section is going to use a pseudo test suite project called GeoDistance. The GeoDistance project uses C++ and a GNU Makefile to build a command-line tool, geo-distance, that calculates and prints out the total distance of a path constructed by a list of latitude and longitude pairs provided by the input file.
+本节的其余部分将使用名为\textit{GeoDistance}的伪测试套件项目，并使用\texttt{C++}和Makefile构建一个命令行工具\texttt{geo-distance}，该工具计算由输入文件提供的每对经纬度的距离，并所有路径的距离总和。
 
-It should have the following folder structure:
+其有以下文件夹结构:
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
@@ -22,7 +23,7 @@ GeoDistance \\
 \hspace*{0.5cm}|\_\_\_Makefile 
 \end{tcolorbox}
 
-Here, the Makefile looks like this:
+\texttt{Makefile}长这样：
 
 \begin{lstlisting}[style=styleJavaScript]
 FLAGS := -DSMALL_INPUT -ffast-math
@@ -35,31 +36,31 @@ $(EXE): $(OBJS)
 	$(CXX) $(FLAGS) $< -o $@
 \end{lstlisting}
 
-To run the geo-distance command-line tool, use the following command:
+运行\texttt{geo-distance}命令行工具:
 
 \begin{tcblisting}{commandshell={}}
 $ geo-distance ./sample_input.txt
 \end{tcblisting}
 
-This prints out the floating-point distance to stdout:
+将总距离(浮点)输出到标准输出:
 
 \begin{tcblisting}{commandshell={}}
 $ geo-distance ./sample_input.txt
 94.873467
 \end{tcblisting}
 
-The floating-point precision requirement here is 0.001.
+这里对浮点精度要求是小数点后三位(0.001)。
 
-\subsubsubsection{3.4.2\hspace{0.2cm}Importing code into llvm-test-suite}
+\subsubsubsection{3.4.2\hspace{0.2cm}将代码导入llvm-test-suite}
 
-Basically, there are only two things we need to do to import existing test suites or benchmarks into llvm-test-suite:
+通常，只需要做两件事就可以将现有的测试套件或基准导入到\texttt{llvm-test-suite}中:
 
 \begin{itemize}
-\item Use CMake as the build system
-\item Compose verification rules
+\item 使用CMake作为构建系统
+\item 编写验证规则
 \end{itemize}
 
-To use CMake as the build system, the project folder needs to be put under the MultiSource/Applications subdirectory inside the llvm-test-suite source tree. Then, we need to update the enclosing CMakeLists.txt accordingly:
+使用CMake作为构建系统时，项目文件夹需要放在\texttt{llvm-test-suite}源代码树中的\\MultiSource/Applications子目录下，再更新相应地CMakeLists.txt:
 
 \begin{lstlisting}[style=styleCMake]
 # Inside MultiSource/Applications/CMakeLists.txt
@@ -67,7 +68,7 @@ To use CMake as the build system, the project folder needs to be put under the M
 add_subdirectory(GeoDistance)
 \end{lstlisting}
 
-To migrate from our GNU Makefile to CMakeLists.txt, instead of rewriting it using the built-in CMake directives such as add\_executable, LLVM provides some handy functions and macros for you:
+要从Makefile迁移到CMakeLists.txt，但不需要使用CMake指令\texttt{add\_executable}重写它，LLV你提供了一些好用的函数和宏:
 
 \begin{lstlisting}[style=styleCMake]
 # Inside MultiSource/Applications/GeoDistance/CMakeLists.txt
@@ -76,15 +77,15 @@ llvm_multisource(geo-distance)
 llvm_test_data(geo-distance sample_input.txt)
 \end{lstlisting}
 
-There are some new CMake directives here. llvm\_multisource and its sibling, llvm\_singlesource, add a new executable build target from multiple source files or only a single source file, respectively. They're basically add\_executable, but as shown in the previous code, you can choose to leave the source file list empty, and it will use all the C/C++ source files shown in the current directory as input.
+这里有一些新的CMake指令。\texttt{llvm\_multisource}和\texttt{llvm\_singlesource}，分别从多个或单个源文件添加一个新的可执行构建目标，其内部实现是基于\texttt{add\_executable}，但正如前面的代码所示，可以选择将源文件列表置为空，这意味用当前目录中的所有\texttt{C/C++}源文件作为输入。
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}If there are multiple source files but you're using llvm\_singlesource, every source file will be treated as a standalone executable.
+\hspace*{0.7cm}如果有多个源文件，但使用的是\texttt{llvm\_singlesource}，那么每个源文件将视为一个独立的可执行文件。
 \end{tcolorbox}
 
-llvm\_test\_data copies any resource/data files you want to use during runtime to the proper working directory. In this case, it's the sample\_input.txt file.
+\texttt{llvm\_test\_data}将在运行时使用的资源/数据文件复制到适当的工作目录中。本例中，要复制的对象是\texttt{sample\_input.txt}文件。
 
-Now that the skeleton has been set up, it's time to configure the compilation flags using the following code:
+现在框架已经完成设置，可以使用以下代码配置编译标志了:
 
 \begin{lstlisting}[style=styleCMake]
 # Inside MultiSource/Applications/GeoDistance/CMakeLists.txt
@@ -96,7 +97,7 @@ llvm_multisource(geo-distance)
 llvm_test_data(geo-distance sample_input.txt)
 \end{lstlisting}
 
-Finally, TestSuite needs to know how to run the test and how to verify the result:
+最后，TestSuite需要知道如何运行测试，以及如何验证结果:
 
 \begin{lstlisting}[style=styleCMake]
 # Inside MultiSource/Applications/GeoDistance/CMakeLists.txt
@@ -108,20 +109,20 @@ llvm_multisource(geo-distance)
 …
 \end{lstlisting}
 
-The RUN\_OPTIONS CMake variable is pretty straightforward – it provides the commandline options for the testing executable.
+CMake变量\texttt{RUN\_OPTIONS}非常简单——为测试可执行文件提供了命令行选项。
 
-For the verification part, by default, TestSuite will use an enhanced diff to compare the output of stdout and the exit code against files whose filename end with .reference\_output.
+对于验证部分，默认情况下，TestSuite将使用一个增强版的\texttt{diff}以\texttt{.reference\_output}结尾的文件内容，与\texttt{stdout}的输出和退出码进行比较。
 
-For example, in our case, a GeoDistance/geo-distance.reference\_output file is created with the expected answer and exit status code:
+我们的例子中，预期内容和退出码在 GeoDistance/geo-distance.reference\_output中:
 
-\begin{tcblisting}{commandshell={}}
+\begin{lstlisting}[style=styleCMake]
 94.873
 exit 0
-\end{tcblisting}
+\end{lstlisting}
 
-You might find that the expected answer here is slightly different from the output at the beginning of this section (94.873467), and that's because the comparison tool allows you to designate the desired floating-point precision, which is controlled by the FP\_TOLERANCE CMake variable shown previously.
+聪明的读者可能会发现这里的预期答案与本节开始时的输出略有不同(94.873467)，这是因为比较工具允许您指定所需的浮点精度，该精度由 CMake变量\texttt{FP\_TOLERANCE}控制。
 
-In this section, we learned how to leverage the llvm-test-suite project and its TestSuite framework to test executables that are either from an existing codebase or are unable to express testing logic using textual scripts. This will help you become more efficient in testing different kinds of projects using LIT.
+本节中，我们学习了如何利用\texttt{llvm-test-suite}项目，及其TestSuite框架来测试来自现有代码库，或无法使用文本脚本表达测试逻辑的可执行文件。这将帮助您更有效地使用LIT测试不同类型的项目。
 
 
 
