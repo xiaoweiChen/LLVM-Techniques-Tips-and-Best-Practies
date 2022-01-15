@@ -75,30 +75,30 @@ FixedPoint<?, 2> {
 }
 \end{lstlisting}
 
-Another interesting syntax that appeared is the bit extraction (or slicing) on the num\_quarter variable. By writing num\_quarter{1…0}, this gives you a bits value that is equal to the 0th and first bit of num\_quarter. There are some other variants of this technique. For example, it can slice a non-continuous range of bits, as follows:
+另一个有趣的语法是\texttt{num\_quarter}的位提取(或切片)。通过\texttt{num\_quarter\{1…0\}}，这返回一个\texttt{bits}值，这个值的第0位和第1位与\texttt{num\_quarter}第0位和第1位一样。这种技术还有其他一些变体。例如，可以对非连续范围的位进行切片:
 
 \begin{lstlisting}[style=styleCXX]
 num_quarter{8…6,4,2…0}
 \end{lstlisting}
 
-Or, it can extract bits in reversed ordering, as follows:
+或者，它可以反向提取位，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 num_quarter{1…7}
 \end{lstlisting}
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}You might wonder why the code needs to extract the smallest 2 bits explicitly even it has declared that num\_quarter has a width of 2 bits (the bits<2> type). It turned out that for some reason, TableGen will not stop anyone from assigning values greater than 3 into num\_quarter, like this: def x : NplusQuarter<1,999>.
+\hspace*{0.7cm}即使它已经声明num\_quarter的宽度为2位(bits<2>类型)，读者们可能也想知道为什么代码需要显式地提取最小的2位。由于某些原因，TableGen不会阻止将大于3的值赋给\texttt{num\_quarter}，例如\texttt{:def x: NplusQuarter<1,1999>}。
 \end{tcolorbox}
 
-\item With the measuring units and number format, we can finally deal with the ingredients needed for this recipe. First, let's use a separated file, Ingredients.td, to store all the ingredient records. To use all the things mentioned earlier, we can import Kitchen.td by using the include syntax, as follows:
+\item 有了计量单位和数字格式，就可以处理这个配方所需的配料了。首先，让我们使用一个文件\texttt{Ingredients.td}储存所有配料信息。为了使用前面提到的所有东西，可以使用包含语法导入\texttt{Kitchen.td}:
 
 \begin{lstlisting}[style=styleCXX]
 // In Ingredients.td…
 include "Kitchen.td"
 \end{lstlisting}
 
-Then, a base class of all ingredients is created to carry some common fields, as follows:
+然后，创建所有成分的基类(有一些公共字段):
 
 \begin{lstlisting}[style=styleCXX]
 class IngredientBase<Unit unit> {
@@ -107,7 +107,7 @@ class IngredientBase<Unit unit> {
 }
 \end{lstlisting}
 
-Each kind of ingredient is represented by a class derived from IngredientBase, with parameters to specify the quantity needed by a recipe, and the unit used to measure this ingredient. Take milk, for example, as shown in the following code snippet:
+每种食材都由\texttt{IngredientBase}派生的类表示，这些类都有参数来指定配方所需的量，以及计量食材的单位。以牛奶为例，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 class Milk<int integral, int num_quarter> :
@@ -116,17 +116,17 @@ IngredientBase<cup_unit> {
 }
 \end{lstlisting}
 
-The cup\_unit put at the template argument for IngredientBase tells us that milk is measured by a US cup unit, and its quantity is to be determined later by the Milk class template arguments.
+\texttt{IngredientBased}的模板参数\texttt{cup\_unit}表示，牛奶用美制杯为单位，数量将由Milk类模板参数确定。
 
-When writing a recipe, each required ingredient is represented by a record created from one of these ingredient class types:
+编写一个配方时，每个成分都由一个记录表示，该记录由这些成分类创建:
 
 \begin{lstlisting}[style=styleCXX]
 def ingredient_milk : Milk<1,2>; // Need 1.5 cup of milk
 \end{lstlisting}
 
-\item Some ingredients, however, always come together—for example, lemon peel and lemon juice, egg yolk, and egg white. That is, if you have two egg yolks, then there must be two servings of egg white. However, if we need to create a record and assign a quantity for each of the ingredients one by one, there will be a lot of duplicate code. A more elegant way to solve this problem is by using TableGen's multiclass syntax.
+\item 然而，有些食材总是混在一起——例如，柠檬皮和柠檬汁，蛋黄和蛋清。也就是说，如果你有两个蛋黄，就必须有两份蛋清。但是，如果需要创建一个记录，并为每个成分分配数，这样就会出现很多重复的代码。为了优雅的解决这个问题，这里使用TableGen的多类语法。
 
-Taking the following egg example, assume we want to create WholeEgg, EggWhite, and EggYolk records at once with the same quantity, and define the multiclass first:
+以鸡蛋为例，假设想要同时创建相同数量的\texttt{WholeEgg}、\texttt{EggWhite}和\texttt{egggyolk}记录，首先需要定义\texttt{multiclass}:
 
 \begin{lstlisting}[style=styleCXX]
 multiclass Egg<int num> {
@@ -142,17 +142,17 @@ multiclass Egg<int num> {
 }
 \end{lstlisting}
 
-When writing the recipe, use the defm syntax to create multiclass records, as follows:
+编写配方时，使用\texttt{defm}语法创建\texttt{multiclass}记录:
 
 \begin{lstlisting}[style=styleCXX]
 defm egg_ingredient : Egg<3>;
 \end{lstlisting}
 
-After using defm, three records will  actually be created: egg\_ingredient\_whole, egg\_ingredient\_yolk, and egg\_ingredient\_white, inheriting from WholeEgg, EggYolk, and EggWhite, respectively.
+使用\texttt{defm}之后，将创建三个记录：\texttt{egg\_ingredient\_whole}、\texttt{egg\_ingredient\_yolk}和\\\texttt{egg\_ingredient\_white}，分别继承于\texttt{WholEgg}、\texttt{EggYolk}和\texttt{EggWhite}。
 
-\item Finally, we need a way to describe the steps to make a donut. Many recipes have some preparation steps that don't need to be done in a specific order. Take the donut recipe here, for example: preheating the oil can be done at any time before the donuts are ready to be fried. Thus, it might be a good idea to express baking steps in a dag type.
+\item 最后，我们需要一种方法来描述制作甜甜圈的步骤。许多食谱都有一些准备步骤，不需要按照特定的顺序来完成。以甜甜圈食谱为例：在油炸甜甜圈之前，随时都可以预热油。因此，用\texttt{dag}类型表示烘焙步骤可能是个好主意。
 
-Let's first create the class to represent a baking step, as follows:
+先创建一个类来表示烘焙步骤:
 
 \begin{lstlisting}[style=styleCXX]
 class Step<dag action, Duration duration, string custom_
@@ -164,7 +164,7 @@ format> {
 }
 \end{lstlisting}
 
-The Action field carries the baking instructions and information about the ingredients used. Here is an example:
+\texttt{Action}字段包含烘焙说明和有关所用配料的信息:
 
 \begin{lstlisting}[style=styleCXX]
 def mix : Action<"mix",…>;
@@ -173,7 +173,7 @@ def flour : Flour<…>;
 def step_mixing : Step<(mix milk, flour), …>;
 \end{lstlisting}
 
-Action is just a class used for describing movements. The following snippet represents the fact that step\_mixing2 is using the outcome from step\_mixing (maybe a raw dough) and mixing it with butter:
+\texttt{Action}只是用来描述动作的类。下面的代码代表了\texttt{step\_mixing2}使用\texttt{step\_mixing2}的结果(可能是生面团)，并将其与黄油混合的过程:
 
 \begin{lstlisting}[style=styleCXX]
 …
@@ -181,15 +181,15 @@ def step_mixing : Step<(mix milk, flour), …>;
 def step_mixing2 : Step<(mix step_mixing, butter), …>;
 \end{lstlisting}
 
-Eventually, all of the Step records will form a DAG, in which a vertex will either be a step or an ingredient record.
+最终，所有的\texttt{Step}记录将形成一个DAG，其中的顶点是一个\texttt{Step}的记录，或是一个成分的记录。
 
-We're also annotating our dag operator and operand with tags, as follows:
+这里，还用标签来注释\texttt{dag}操作符和操作数，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 def step_mixing2 : Step<(mix:$action step_mixing:$dough, butter)>
 \end{lstlisting}
 
-In the previous section, Introduction to TableGen syntax, we said that these dag tags have no immediate effect in TableGen code, except affecting how TableGen backends handle the current record—for example, if we have a string type field, CustomFormat, in the Step class, as follows:
+前一节TableGen语法介绍中，说过这些\texttt{dag}标签在TableGen代码中，除了影响TableGen后端处理当前记录的方式，并没有即时效果——例如，在\texttt{Step}类中有一个\texttt{string}类型字段\texttt{CustomFormat}，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 def step_prep : Step<(heat:$action fry_oil:$oil, oil_
@@ -198,11 +198,11 @@ temp:$temp)> {
 }
 \end{lstlisting}
 
-With the field content shown, we can replace \$action, \$oil, and \$temp in the string with the textual representation of those records, generating a string such as heat the peanut oil until it reaches 300 F.
+显示字段内容后，可以用记录的文本表示替换字符串中的\texttt{\$action}、\texttt{\$oil}和\texttt{\$temp}，生成一个字符串，例如:\texttt{花生油加热至300华氏度}。
 
 \end{enumerate}
 
-And that wraps up this section of this chapter. In the next section, the goal is to develop a custom TableGen backend to take the TableGen version recipe here as input and print out a normal plaintext recipe.
+下一节的目标是开发一个自定义TableGen后端，将这里的TableGen版本的菜谱作为输入，并打印出纯文本的菜谱。
 
 
 

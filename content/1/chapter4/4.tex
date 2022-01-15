@@ -1,10 +1,10 @@
-Following up on the last part of the previous section, after composing the donut recipe in TableGen's syntax, it's time to print out a normal recipe from that via a custom-built TableGen backend.
+在上一节的最后一部分中，在用TableGen的语法编写完甜甜圈食谱之后，现在可以通过自定义的TableGen后端打印食谱了。
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}Please don't confuse a TableGen backend with a LLVM backend: the former converts (or transpiles) TableGen files into an arbitrary textual content, C/C++ header files being the most common form. An LLVM backend, on the other hand, lowers LLVM intermediate representations (IR) into low-level assembly code.
+\hspace*{0.7cm}请不要将\textbf{TableGen后端}与\textbf{LLVM后端}混淆:前者将TableGen文件转换(或转换)为任意文本内容，\texttt{C/C++}头文件是最常见的形式。另一方面，LLVM后端会将LLVM\textbf{中间表示(IR)}转译为底层汇编代码。
 \end{tcolorbox}
 
-In this section, we're developing the TableGen backend to print the donut we composed in the previous section into content, like this:
+本节中，我们将开发TableGen后端来打印前一节中甜甜圈食谱:
 
 \begin{tcblisting}{commandshell={}}
 =======Ingredients=======
@@ -31,29 +31,28 @@ speed.
 (step 6).
 \end{tcblisting}
 
-First, we will give an overview of llvm-tblgen, the program for driving the TableGen translation process. Then, we will show you how to develop our recipe-printing TableGen backend. Finally, we'll show you how to integrate our backend into the llvm-tblgen executable.
+首先，\texttt{llvm-tblgen}是驱动TableGen翻译过程的程序。然后，再展示如何开发打印食谱的TableGen后端。最后，展示如何将后端集成到\texttt{llvm-tblgen}。
 
+\subsubsubsection{4.4.1\hspace{0.2cm}TableGen的高层工作流}
 
-\subsubsubsection{4.4.1\hspace{0.2cm}TableGen's high-level workflow}
-
-The TableGen backend takes in-memory representation (in the form of C++ objects) of the TableGen code we just learned and transforms it into arbitrary textual content. The whole process is driven by the llvm-tblgen executable, whose workflow can be illustrated by this diagram:
+TableGen后端接受我们刚刚学习的TableGen代码的内存表示(以\texttt{C++}对象形式)，并将其转换为任意文本内容。整个过程由\texttt{llvm-tblgen}可执行文件驱动，其工作流程如图所示:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
 \includegraphics[width=0.9\textwidth]{content/1/chapter4/images/1.jpg}\\
-Figure 4.1 – Workflow of llvm-tblgen
+图4.1 - llvm-tblgen工作流程
 \end{center}
 
-TableGen code's in-memory representation (which consists of C++ types and APIs) plays an important role in the TableGen backend development. Similar to LLVM IR, it is organized hierarchically. Starting from the top level, here is a list of its hierarchy, where each of the items is a C++ class:
+TableGen代码的内存表示(由C++类型和API组成)在TableGen后端开发中扮演着重要的角色。与LLVM IR类似，是分层组织。从顶层开始，这里有层次结构的表，每个项目都是一个C++类:
 
 \begin{itemize}
-\item RecordKeeper: A collection (and owner) of all Record objects in the current translation unit.
-\item Record: Represents a record or a class. The enclosing fields are represented by RecordVal. If it's a class, you can also access its template arguments.
-\item RecordVal: Represents a pair of record fields and their initialized value, along with supplementary information such as the field's type and source location.
-\item Init: Represents the initialized value of a field. It is a parent class of many, which represents different types of initialized values—For example, IntInit for integer values and DagInit for DAG values.
+\item \texttt{RecordKeeper}: 当前翻译单元中所有Record对象的集合(和所有者)。
+\item \texttt{Record}: 表示一个记录或一个类。封闭字段由\texttt{RecordVal}表示。如果它是一个\texttt{class}，也可以访问它的模板参数。
+\item \texttt{RecordVal}: 表示一对记录字段及其初始值，以及字段的类型和源位置等补充信息。
+\item \texttt{Init}: 表示字段的初始值。它是许多初始化值的父类，代表不同类型的初始化值——例如，\texttt{IntInit}代表整数值，\texttt{DagInit}代表DAG实例。
 \end{itemize}
 
-To give you a little task on the practical aspect of a TableGen backend, here is the skeleton of it:
+为了更了解TableGen后端实际完成的事情，一下是其框架结构:
 
 \begin{lstlisting}[style=styleCXX]
 class SampleEmitter {
@@ -64,19 +63,19 @@ public:
 };
 \end{lstlisting}
 
-This emitter basically takes a RecordKeeper object (passed in by the constructor) as the input and prints the output into the raw\_ostream stream—the function argument of SampleEmitter::run.
+这个发射器接受一个\texttt{RecordKeeper}对象(由构造函数传入)作为输入，并将输出输出到\\\texttt{raw\_ostream}流中——\texttt{SampleEmitter::run}的函数参数。
 
-In the next section, we're going to show you how to set up the development environment and get hands- on, writing a TableGen backend.
+下一节中，将展示如何设置开发环境，并动手编写TableGen后端。
 
-\subsubsubsection{4.4.2\hspace{0.2cm}Writing the TableGen backend}
+\subsubsubsection{4.4.2\hspace{0.2cm}编写TableGen后端}
 
-In this section, we're showing you the steps of writing a backend to print out recipes written in TableGen. Let's start with the setup.
+在本节中，将展示编写一个后端，用来打印使用TableGen编写菜谱的步骤。从设置开始。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Project setup}
+\textbf{项目设置}
 
-To get started, LLVM has already provided a skeleton for writing a TableGen backend. So, please copy the llvm/lib/TableGen/TableGenBackendSkeleton.cpp file from the LLVM Project's source tree into the llvm/utils/TableGen folder, as follows:
+首先，LLVM已经提供了一个编写TableGen后端的框架。请从llvm项目的源代码树中拷贝llvm/lib/TableGen/TableGenBackendSkeleton.cpp文件到llvm/utils/TableGen文件夹中，如下所示:
 
 \begin{tcblisting}{commandshell={}}
 $ cd llvm
@@ -84,24 +83,24 @@ $ cp lib/TableGen/TableGenBackendSkeleton.cpp \
       utils/TableGen/RecipePrinter.cpp
 \end{tcblisting}
 
-Then, refactor the cSkeletonEmitter class into RecipePrinter.
+然后，将\texttt{cSkeletonEmitter}类重构入\texttt{RecipePrinter}中。
 
-RecipePrinter has the following workflow:
+\texttt{RecipePrinter}有以下工作流程:
 
 \begin{enumerate}
-\item Collect all baking steps and ingredient records.
-\item Print individual ingredients in textual formats using individual functions to print measuring units, temperature, equipment, and so on in textual formats.
-\item Linearize the DAG of all baking steps.
-\item Print each linearized baking step using a function to print custom formatting.
+\item 收集所有烘焙步骤和配料记录。
+\item 使用函数以文本格式打印计量单位、温度、设备等成分。
+\item 将所有烘烤步骤的DAG线性化。
+\item 打印每个线性化的烘烤步骤，并使用函数来自定义打印格式。
 \end{enumerate}
 
-We're not going to cover all the implementation details since lots of backend codes are actually not directly related to TableGen (text formatting and string processing, for example). Therefore, the following subsections only focus on how to retrieve information from TableGen's in-memory objects.
+我们不打算涵盖所有的实现细节，因为许多后端代码实际上与TableGen(例如：文本格式和字符串处理)没有直接关系。因此，下面的小节只关注如何从TableGen的内存对象中检索信息。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Getting all the baking steps}
+\textbf{完成所有的烘焙步骤}
 
-In the TableGen backend, a TableGen record is represented by the Record C++ class. When we want to retrieve all the records derived from a specific TableGen class, we can use one of the functions of RecordKeeper: getAllDerivedDefinitions. For instance, let's say we want to fetch all the baking steps records that derived from the Step TableGen class in this case. Here is how we do with getAllDerivedDefinitions:
+在TableGen后端，TableGen记录由C++类\texttt{record}表示。当我们想要检索从特定的TableGen类派生的所有记录时，可以使用\texttt{RecordKeeper}的函数\texttt{getAllDerivedDefinitions}。例如，想要获取本例中从\texttt{Step}的TableGen类派生的所有烘焙步骤记录。下面是如何使用\\\texttt{getAllDerivedDefinitions}的例子:
 
 \begin{lstlisting}[style=styleCXX]
 // In RecipePrinter::run method…
@@ -109,17 +108,17 @@ std::vector<Record*> Steps = Records.
 getAllDerivedDefinitions("Step");
 \end{lstlisting}
 
-This gives us a list of Record pointers that represent all of the Step records.
+这为我们提供了一个记录指针列表，表示所有的\texttt{Step}记录。
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}For the rest of this section, we will use Record in this format (with Courier font face) to refer to the C++ counterpart of a TableGen record.
+\hspace*{0.7cm}本节的其余部分中，我们将使用这种格式的\texttt{Record}(带有Courier字体)来引用\texttt{C++}对应的TableGen记录。
 \end{tcolorbox}
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Retrieving field values}
+\textbf{检索字段值}
 
-Retrieving field values from Record is probably the most basic operation. Let's say we're working on a method for printing Unit record objects introduced earlier, as follows:
+从\texttt{Record}中检索字段值可能是最基本的操作。假设我们正在开发一个之前介绍的用于打印\texttt{Unit}记录对象的方法:
 
 \begin{lstlisting}[style=styleCXX]
 void RecipePrinter::printUnit(raw_ostream& OS, Record*
@@ -128,7 +127,7 @@ UnitRecord) {
 }
 \end{lstlisting}
 
-The Record class provides some handy functions, such as getValueAsString, to retrieve the value of a field and try to convert it into a specific type so that you don't need to retrieve the RecordVal value of a specific field (in this case, the Text field) before getting the real value. Similar functions include the following:
+\texttt{Record}类提供了一些方便的函数，例如\texttt{getValueAsString}，来检索字段的值，并尝试将其转换为特定类型。这样在获取实际值之前，就不需要检索特定字段的\texttt{RecordVal}值(在本例中为\texttt{Text}字段)。类似的功能包括:
 
 \begin{itemize}
 \tt
@@ -138,29 +137,29 @@ The Record class provides some handy functions, such as getValueAsString, to ret
 \item DagInit* getValueAsDag(StringRef FieldName)
 \end{itemize}
 
-In addition to these utility functions, we sometimes just want to check if a specific field exists in a record. In such cases, call Record::getValue(StringRef FieldName) and check if the returned value is null. But just be aware that not every field needs to be initialized; you may still need to check if a field exists, but is uninitialized. When that happens, let Record::isValueUnset help you.
+除了这些实用的函数外，有时只想检查记录中是否存在特定的字段。这种情况下，调用\\\texttt{Record::getValue(StringRef FieldName)}并检查返回值是否为空。但要注意，不是每个字段都需要初始化(可能仍然需要检查字段是否存在，但未初始化)。当这种情况发生时，可以让\\\texttt{Record::isValueUnset}帮助你。
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}TableGen actually uses a special Init class, UnsetInit, to represent an uninitialized value.
+\hspace*{0.7cm}TableGen实际上使用了一个特殊的\texttt{Init}类——\texttt{UnsetInit}——来表示一个未初始化的值。
 \end{tcolorbox}
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Type conversion}
+\textbf{类型转换}
 
-Init represents initialization values, but most of the time we're not directly working with it but with one of its children's classes.
+\texttt{Init}表示初始化值，但大多数时候我们不会直接使用，而是使用其子类。
 
-For example, StepOrIngredient is an Init type object that represents either a Step record or an ingredient record. It would be easier for us to convert it to its underlying DefInit object since DefInit provides richer functionalities. We can use the following code to typecast the Init type StepOrIngredient into a DefInit type object:
+例如，\texttt{StepOrIngredient}是一个\texttt{Init}类型对象，可以表示\texttt{Step}记录或成分记录。由于\texttt{DefInit}提供了更丰富的功能，所以可以更容易地将其转换为底层的\texttt{DefInit}对象。可以使用以下代码将\texttt{Init}类型\texttt{StepOrIngredient}转换为\texttt{DefInit}对象:
 
 \begin{lstlisting}[style=styleCXX]
 const auto* SIDef = cast<const DefInit>(StepOrIngredient);
 \end{lstlisting}
 
-You can also use isa<…>(…) to check its underlying type first, or dyn\_cast<…>(…) if you don't want to receive an exception when the conversion fails.
+还可以使用\texttt{isa<…>(…)}首先检查底层类型，或者不想在转换失败时收到异常，可以使用\texttt{dyn\_cast<…>(…)}。
 
-Record represents a TableGen record, but it would be better if we can find out its parent class, which further tells us the field's information.
+\texttt{Record}表示TableGen记录，但如果能找到其父类就更好了，这将进一步获取相应字段的信息。
 
-For example, after getting the underlying Record object for SIDef, we can use the isSubClassOf function to tell if that Record is a baking step or ingredient, as follows:
+例如，在获取\texttt{SIDef}的基础\texttt{Record}对象后，可以使用\texttt{isSubClassOf}函数来判断\texttt{Record}是一个烘焙步骤，还是配料:
 
 \begin{lstlisting}[style=styleCXX]
 Record* SIRecord = SIDef->getDef();
@@ -171,11 +170,11 @@ if (SIRecord->isSubClassOf("Step")) {
 }
 \end{lstlisting}
 
-Knowing what the underlying TableGen class actually is can help us to print that record in its own way.
+了解底层的TableGen类，可以帮助我们以自己的方式打印记录。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Handling DAG values}
+\textbf{处理DAG中的值}
 
 Now, we are going to print out the Step records. Recall that we used the dag type to represent the action and the ingredients required for a baking step. Have a look at the following code example:
 
@@ -216,7 +215,7 @@ If ArgTok is empty, this means there is no token associated with that operand. T
 
 This section has shown you some of the most important aspects of working with TableGen directives' in-memory C++ representation, which is the building block of writing a TableGen backend. In the next section, we will show you the final step to put everything together and run our custom TableGen backend.
 
-\subsubsubsection{4.4.3\hspace{0.2cm}Integrating the RecipePrinter TableGen backend}
+\subsubsubsection{4.4.3\hspace{0.2cm}集成RecipePrinter TableGen后端}
 
 After finishing the utils/TableGen/RecipePrinter.cpp file, it's time to put everything together.
 
