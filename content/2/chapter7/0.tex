@@ -1,0 +1,50 @@
+In the previous chapter, we learned how Clang's preprocessor handles preprocessing directives in C-family languages. We also learned how to write different kinds of preprocessor plugins, such as pragma handlers, to extend Clang's functionalities. Those skills are especially useful when it comes to implementing field-specific logic or even custom language features.
+
+In this chapter, we're going to talk about a semantic-aware representation of the original source code file once it has been parsed, known as an Abstract Syntax Tree (AST). An AST is a format that carries rich semantic information, including types, expression trees, and symbols, to name a few. It is not only used as a blueprint to generate LLVM IR for later compilation stages but is also the recommended format for performing static analysis. On top of that, Clang also provides a nice framework for developers to intercept and manipulate AST in the middle of the frontend pipeline via a simple plugin interface.
+
+In this chapter, we are going to cover how to process AST in Clang, the important APIs for in-memory AST representation, and how to write AST plugins to implement custom logic with little effort. We will cover the following topics:
+
+\begin{itemize}
+\item Learning about AST in Clang
+\item Writing AST plugins
+\end{itemize}
+
+By the end of this chapter, you will know how to work with AST in Clang in order to analyze programs at the source code level. In addition, you will know how to inject custom AST processing logic into Clang in an easy way via AST plugins.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

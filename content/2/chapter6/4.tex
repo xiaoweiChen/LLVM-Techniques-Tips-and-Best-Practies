@@ -1,0 +1,309 @@
+
+As flexible as other parts of LLVM and Clang, Clang's preprocessing framework also provides a way to insert custom logic via plugins. More specifically, it allows developers to write plugins to handle custom pragma directives (that is, allowing users to write something such as \#pragma my\_awesome\_feature). In addition, the Preprocessor class also provides a more general way to define custom callback functions in reaction to arbitrary preprocessing events— such as when a macro is expanded or a \#include directive is resolved, to name but a couple of examples. In this section, we're going to use a simple project that leverages both techniques to demonstrate their usage.
+
+\subsubsubsection{6.4.1\hspace{0.2cm}The project goal and preparation}
+
+Macros in C/C++ have always been notorious for poor design hygiene that could easily lead to coding errors when used without care. Have a look at the following code snippet for an example of this:
+
+\begin{lstlisting}[style=styleCXX]
+#define PRINT(val) \
+printf("%d\n", val * 2)
+void main() {
+	PRINT(1 + 3);
+}
+\end{lstlisting}
+
+PRINT in the preceding code snippet looks just like a normal function, thus it's easy to believe that this program will print out 8. However, PRINT is a macro function rather than a normal function, so when it's expanded, the main function is equivalent to this:
+
+\begin{lstlisting}[style=styleCXX]
+void main() {
+	printf("%d\n", 1 + 3 * 2);
+}
+\end{lstlisting}
+
+Therefore, the program actually prints 7. This ambiguity can of course be solved by wrapping every occurrence of the val macro argument in the macro body with parenthesis, as illustrated in the following code snippet:
+
+\begin{lstlisting}[style=styleCXX]
+#define PRINT(val) \
+printf("%d\n", (val) * 2)
+\end{lstlisting}
+
+Therefore, after macro expansion, the main function will look like this:
+
+\begin{lstlisting}[style=styleCXX]
+void main() {
+	printf("%d\n", (1 + 3) * 2);
+}
+\end{lstlisting}
+
+The project we're going to do here is to develop a custom \#pragma syntax to warn developers if a certain macro argument, designated by programmers, is not properly enclosed in parentheses, for the sake of preventing the preceding hygiene problems from happening. Here is an example of this new syntax:
+
+\begin{lstlisting}[style=styleCXX]
+#pragma macro_arg_guard val
+#define PRINT(val) \
+printf("%d\n", val * 94 + (val) * 87);
+void main() {
+	PRINT(1 + 3);
+}
+\end{lstlisting}
+
+Similar to previous example, if an occurrence of the preceding val argument is not enclosed in parentheses, this might introduce potential bugs.
+
+In the new macro\_arg\_guard pragma syntax, tokens following the pragma name are the macro argument names to check in the next macro function. Since val in the val * 94 expression from the preceding code snippet is not enclosed in parentheses, it will print the following warning message:
+
+\begin{tcblisting}{commandshell={}}
+$ clang … foo.c
+[WARNING] In foo.c:3:18: macro argument 'val' is not enclosed by parenthesis
+\end{tcblisting}
+
+This project, albeit being a toy example, is actually pretty useful when the macro function becomes pretty big or complicated, in which case manually adding parentheses on every macro argument occurrence might be an error-prone task. A tool to catch this kind of mistake would definitely be helpful.
+
+Before we dive into the coding part, let's set up the project folder. Here is the folder structure:
+
+\begin{tcolorbox}[colback=white,colframe=black]
+\tt
+\zihao{-5}
+MacroGuard \\
+\hspace*{0.5cm}|\_\_\_ CMakeLists.txt \\
+\hspace*{0.5cm}|\_\_\_ MacroGuardPragma.cpp \\
+\hspace*{0.5cm}|\_\_\_ MacroGuardValidator.h \\
+\hspace*{0.5cm}|\_\_\_ MacroGuardValidator.cpp
+\end{tcolorbox}
+
+The MacroGuardPragama.cpp file includes a custom PragmaHandler function, which we're going to cover in the next section, Implementing a custom pragma handler. For MacroGuardValidator.h/.cpp, this includes a custom PPCallbacks function used to check if the designated macro body and arguments conform to our rules here. We will introduce this in the later, Implementing custom preprocessor callbacks section.
+
+Since we're setting up an out-of-tree project here, please refer to the Understanding CMake integration for out-of-tree projects section of Chapter 2, Exploring LLVM's Build System Features, in case you don't know how to import LLVM's own CMake directives (such as the add\_llvm\_library and add\_llvm\_executable CMake functions). And because we're also dealing with Clang here, we need to use a similar way to import Clang's build configurations, such as the include folder path shown in the following code snippet:
+
+\begin{lstlisting}[style=styleCMake]
+# In MacroGuard/CmakeLists.txt
+…
+# (after importing LLVM's CMake directives)
+find_package(Clang REQUIRED CONFIG)
+include_directories(${CLANG_INCLUDE_DIRS}
+\end{lstlisting}
+
+The reason we don't need to set up Clang's library path here is because normally, plugins will dynamically link against libraries' implementations provided by the loader program (in our case, the clang executable) rather than linking those libraries explicitly during build time.
+
+Finally, we're adding the plugin's build target, as follows:
+
+\begin{lstlisting}[style=styleCMake]
+set(_SOURCE_FILES
+	MacroGuardPragma.cpp
+	MacroGuardValidator.cpp
+	)
+add_llvm_library(MacroGuardPlugin MODULE
+	${_SOURCE_FILES}
+	PLUGIN_TOOL clang)
+\end{lstlisting}
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=The PLUGIN\_TOOL argument]
+\hspace*{0.7cm}The PLUGIN\_TOOL argument for the add\_llvm\_library CMake function seen in the preceding code snippet is actually designed exclusively for Windows platforms, since dynamic link library (DLL) files—the dynamic shared object file format in Windows—has an…interesting rule that requires a loader executable's name to be shown in the DLL file header. PLUGIN\_TOOL is also used for specifying this plugin loader executable's name.
+\end{tcolorbox}
+
+After setting up the CMake script and building the plugin, you can use the following command to run the plugin:
+
+\begin{tcblisting}{commandshell={}}
+$ clang … -fplugin=/path/to/MacroGuardPlugin.so foo.c
+\end{tcblisting}
+
+Of course, we haven't currently written any code, so nothing is printed out. In the next section, we will first develop a custom PragmaHandler instance to implement our new \#pragma macro\_arg\_guard syntax.
+
+\subsubsubsection{6.4.2\hspace{0.2cm}Implementing a custom pragma handler}
+
+The first step of implementing the aforementioned features is to create a custom \#pragma handler. To do so, we first create a MacroGuardHandler class that derives from the PragmaHandler class inside the MacroGuardPragma.cpp file, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+struct MacroGuardHandler : public PragmaHandler {
+	MacroGuardHandler() : PragmaHandler("macro_arg_guard"){}
+	void HandlePragma(Preprocessor &PP, PragmaIntroducer
+					          Introducer, Token &PragmaTok) override;
+};
+\end{lstlisting}
+
+The HandlePragma callback function will be invoked whenever the Preprocessor encounters a non-standard pragma directive. We're going to do two things in this function, as follows:
+
+\begin{enumerate}
+\item Retrieve any supplement tokens—treated as the pragma arguments—that follows after the pragma name token (macro\_arg\_guard).
+
+\item Register a PPCallbacks instance that scans the body of the next macro function definition to see if specific macro arguments are properly enclosed by parentheses in there. We will outline the details of this task next.
+\end{enumerate}
+
+For the first task, we are leveraging Preprocessor to help us parse the pragma arguments, which are macro argument names to be enclosed. When HandlePragma is called, the Preprocessor is stopped at the place right after the pragma name token, as illustrated in the following code snippet:
+
+\begin{tcblisting}{commandshell={}}
+#pragma macro_arg_guard val
+                           ^--Stop at here
+\end{tcblisting}
+
+So, all we need to do is keep lexing and storing those tokens until hitting the end of this line:
+
+\begin{lstlisting}[style=styleCXX]
+void MacroGuardHandler::HandlePragma(Preprocessor &PP,…) {
+	Token Tok;
+	PP.Lex(Tok);
+	while (Tok.isNot(tok::eod)) {
+		ArgsToEnclosed.push_back(Tok.getIdentifierInfo());
+		PP.Lex(Tok);
+	}
+}
+\end{lstlisting}
+
+The eod token kind in the preceding code snippet means end of directive. It is exclusively used to mark the end of a preprocessor directive.
+
+For the ArgsToEscped variable, the following global array stores the designated macro argument's IdentifierInfo objects:
+
+\begin{lstlisting}[style=styleCXX]
+SmallVector<const IdentifierInfo*, 2> ArgsToEnclosed;
+struct MacroGuardHandler: public PragmaHandler {
+	…
+};
+\end{lstlisting}
+
+The reason we're declaring ArgsToEnclosed in a global scope is that we're using it to communicate with our PPCallbacks instance later, which will use that array content to perform the validations.
+
+Though the implementation details of our PPCallbacks instance, the MacroGuardValidator class, will not be covered until the next section, it needs to be registered with the Preprocessor when the HandlePragma function is called for the first time, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+struct MacroGuardHandler : public PragmaHandler {
+	bool IsValidatorRegistered;
+	MacroGuardHandler() : PragmaHandler("macro_arg_guard"),
+	IsValidatorRegistered(false) {}
+	…
+};
+void MacroGuardHandler::HandlePragma(Preprocessor &PP,…) {
+	…
+	if (!IsValidatorRegistered) {
+		auto Validator = std::make_unique<MacroGuardValidator>(…);
+		PP.addCallbackPPCallbacks(std::move(Validator));
+		IsValidatorRegistered = true;
+	}
+}
+\end{lstlisting}
+
+We also use a flag to make sure it is only registered once. After this, whenever a preprocessing event happens, our MacroGuardValidator class will be invoked to handle it. In our case, we are only interested in the macro definition event, which signals to MacroGuardValidator to validate the macro body that it just defined.
+
+Before wrapping up on PragmaHandler, we need some extra code to transform the handler into a plugin, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+struct MacroGuardHandler : public PragmaHandler {
+	…
+};
+static PragmaHandlerRegistry::Add<MacroGuardHandler>
+  X("macro_arg_guard", "Verify if designated macro args are
+    enclosed");
+\end{lstlisting}
+
+After declaring this variable, when this plugin is loaded into clang, a MacroGuardHandler instance is inserted into a global PragmaHandler registry, which will be queried by the Preprocessor whenever it encounters a non-standard \#pragma directive. Now, Clang is able to recognize our custom macro\_arg\_guard pragma when the plugin is loaded.
+
+\subsubsubsection{6.4.3\hspace{0.2cm}Implementing custom preprocessor callbacks}
+
+Preprocessor provides a set of callbacks, the PPCallbacks class, which will be triggered when certain preprocessor events (such as a macro being expanded) happen. The previous, Implementing a custom pragma handler section, showed you how to register your own PPCallbacks implementations, the MacroGuardValidator, with Preprocessor. Here, we're going to show you how MacroGuardValidator validates the macro argument-escaping rule in macro functions.
+
+First, in MacroGuardValidator.h/.cpp, we put the following skeleton:
+
+\begin{lstlisting}[style=styleCXX]
+// In MacroGuardValidator.h
+extern SmallVector<const IdentifierInfo*, 2> ArgsToEnclosed;
+
+class MacroGuardValidator : public PPCallbacks {
+	SourceManager &SM;
+public:
+	explicit MacroGuardValidator(SourceManager &SM) : SM(SM) {}
+	void MacroDefined(const Token &MacroNameToke,
+	const MacroDirective *MD) override;
+};
+
+// In MacroGuardValidator.cpp
+void MacroGuardValidator::MacroDefined(const Token
+&MacroNameTok, const MacroDirective *MD) {
+}
+\end{lstlisting}
+
+Among all the callback functions in PPCallbacks, we're only interested in MacroDefined, which will be invoked when a macro definition is processed, represented by the MacroDirective type function argument (MD). The SourceManager type member variable (SM) is used for printing SourceLocation when we need to show some warning messages.
+
+Focusing on MacroGuardValidator::MacroDefined, the logic here is pretty simple: for each identifier in the ArgsToEnclosed array, we're scanning macro body tokens to check if its occurrences have parentheses as its predecessor and successor tokens. First, let's put in the loop's skeleton, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+void MacroGuardValidator::MacroDefined(const Token
+&MacroNameTok, const MacroDirective *MD) {
+	const MacroInfo *MI = MD->getMacroInfo();
+	// For each argument to be checked…
+	for (const IdentifierInfo *ArgII : ArgsToEnclosed) {
+		// Scanning the macro body
+		for (auto TokIdx = 0U, TokSize = MI->getNumTokens();
+		TokIdx < TokSize; ++TokIdx) {
+			…
+		}
+	}
+}
+\end{lstlisting}
+
+If a macro body token's IdentifierInfo argument matches ArgII, this means there is a macro argument occurrence, and we check that token's previous and next tokens, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+for (const IdentifierInfo *ArgII : ArgsToEnclosed) {
+	for (auto TokIdx = 0U, TokSize = MI->getNumTokens();
+	TokIdx < TokSize; ++TokIdx) {
+		Token CurTok = *(MI->tokens_begin() + TokIdx);
+		if (CurTok.getIdentifierInfo() == ArgII) {
+			if (TokIdx > 0 && TokIdx < TokSize - 1) {
+				auto PrevTok = *(MI->tokens_begin() + TokIdx - 1),
+				NextTok = *(MI->tokens_begin() + TokIdx + 1);
+				if (PrevTok.is(tok::l_paren) && NextTok.is
+				(tok::r_paren))
+				continue;
+			}
+			…
+		}
+	}
+}
+\end{lstlisting}
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Uniqueness of IdentifierInfo instances]
+\hspace*{0.7cm}Recall that same identifier strings are always represented by the same IdentifierInfo object. That's the reason we can simply use pointer comparison here.
+\end{tcolorbox}
+
+The MacroInfo::tokens\_begin function returns an iterator pointing to the beginning of an array carrying all the macro body tokens.
+
+Finally, we print a warning message if the macro argument token is not enclosed by parentheses, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+for (const IdentifierInfo *ArgII : ArgsToEnclosed) {
+	for (auto TokIdx = 0U, TokSize = MI->getNumTokens();
+	TokIdx < TokSize; ++TokIdx) {
+		…
+		if (CurTok.getIdentifierInfo() == ArgII) {
+			if (TokIdx > 0 && TokIdx < TokSize - 1) {
+				…
+				if (PrevTok.is(tok::l_paren) && NextTok.is
+				(tok::r_paren))
+				continue;
+			}
+			SourceLocation TokLoc = CurTok.getLocation();
+			errs() << "[WARNING] In " << TokLoc.printToString(SM)
+			<< ": ";
+			errs() << "macro argument '" << ArgII->getName()
+			<< "' is not enclosed by parenthesis\n";
+		}
+	}
+}
+\end{lstlisting}
+
+And that's all for this section. You're now able to develop a PragmaHandler plugin that can be dynamically loaded into Clang to handle custom \#pragma directives. You've also learned how to implement PPCallbacks to insert custom logic whenever a preprocessor event happens.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

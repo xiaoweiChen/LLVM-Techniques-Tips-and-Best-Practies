@@ -1,0 +1,22 @@
+In the previous chapter, we learned how to process Clang's AST – one of the most common formats for analyzing programs. In addition, we learned how to develop an AST plugin, which is an easy way to insert custom logic into the Clang compilation pipeline. This knowledge will help you augment your skillset for tasks such as source code linting or finding potential security vulnerabilities.
+
+In this chapter, we are ascending from specific subsystems and looking at the bigger picture – the compiler driver and toolchain that orchestrate, configure, and run individual LLVM and Clang components according to users' needs. More specifically, we will focus on how to add new compiler flags and how to create a custom toolchain. As we mentioned in Chapter 5, Exploring Clang's Architecture, compiler drivers and toolchains are often under-appreciated and have long been ignored. However, without these two important pieces of software, compilers will become extremely difficult to use. For example, users need to pass over 10 different compiler flags merely to build a simple hello world program, owing to the lack of flag translation. Users also need to run at least three different kinds of tools in order to create an executable to run, since there are no drivers or toolchains to help us invoke assemblers and linkers. In this chapter, you will learn how compiler drivers and toolchains work in Clang and how to customize them, which is extremely useful if you want to support Clang on a new operating system or architecture.
+
+In this section, we will cover the following topics:
+
+\begin{itemize}
+\item Understanding drivers and toolchains in Clang
+\item Adding custom driver flags
+\item Adding a custom toolchain
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
+

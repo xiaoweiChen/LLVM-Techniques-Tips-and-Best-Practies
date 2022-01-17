@@ -1,0 +1,61 @@
+In this chapter, we are still relying on the clang executable, so make sure you build it, like this:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja clang
+\end{tcblisting}
+
+Since we are working with a driver, as we mentioned in Chapter 5, Exploring Clang's Architecture, you can use the -\#\#\# command-line option to print out the frontend flags that have been translated from the driver, like so:
+
+\begin{tcblisting}{commandshell={}}
+$ clang++ -### -std=c++11 -Wall hello_world.cpp -o hello_world
+"/path/to/clang" "-cc1" "-triple" "x86_64-apple-macosx11.0.0"
+"-Wdeprecated-objc-isa-usage" 
+"-Werror=deprecated-objcisa-usage" "-Werror=implicit-function-declaration" 
+"-emitobj" "-mrelax-all" "-disable-free" "-disable-llvm-verifier"
+… "-fno-strict-return" "-masm-verbose" "-munwind-tables"
+"-target-sdk-version=11.0" … "-resource-dir" "/Library/
+Developer/CommandLineTools/usr/lib/clang/12.0.0" "-isysroot"
+"/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" "-I/
+usr/local/include" "-stdlib=libc++" … "-Wall" "-Wno-reorderinit-list" 
+"-Wno-implicit-int-float-conversion" "-Wno-c99-
+designator" … "-std=c++11" "-fdeprecated-macro" "-fdebugcompilation-dir" 
+"/Users/Rem" "-ferror-limit" "19"
+"-fmessage-length" "87" "-stack-protector" "1" "-fstackcheck" 
+"-mdarwin-stkchk-strong-link" … "-fexceptions" …
+"-fdiagnostics-show-option" "-fcolor-diagnostics" "-o" "/path/
+to/temp/hello_world-dEadBeEf.o" "-x" "c++" "hello_world.cpp"…
+\end{tcblisting}
+
+Using this flag will not run the rest of the compilation but merely execute the driver and toolchain. This makes it a good way to verify and debug specific flags and check they are correctly propagated from the driver to the frontend.
+
+Last but not least, in the last section of this chapter, Adding a custom toolchain, we will work on a project that can only run on Linux systems. Also, please install OpenSSL beforehand. It is usually available as a package in most Linux systems. For example, on Ubuntu, you can use the following command to install it:
+
+\begin{tcblisting}{commandshell={}}
+$ sudo apt install openssl
+\end{tcblisting}
+
+We are only using the command-line utility, so there's no need to install any OpenSSL libraries that are normally used for development.
+
+The code that will be used in this chapter can be found here: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter08}.
+
+In the first section of this chapter, we will provide a brief introduction to Clang's driver and toolchain infrastructure.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

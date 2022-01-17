@@ -1,0 +1,463 @@
+
+In the previous section, we explained the role of the driver and toolchains in Clang. In this section, we are going to learn how Clang's driver does this translation by adding a custom driver flag to Clang. Again, we will go through the overview for this example project first before demonstrating the detailed steps in a separate section.
+
+\subsubsubsection{8.3.1\hspace{0.2cm}Project overview}
+
+The example project we will be using for this section is going to add a new driver flag so that when that flag is given by users, a header file will be implicitly included in the input code.
+
+To be more specific, here, we have a header file – simple\_log.h – shown in the following code that defines some simple APIs to print log messages:
+
+\begin{lstlisting}[style=styleCXX]
+#ifndef SIMPLE_LOG_H
+#define SIMPLE_LOG_H
+#include <iostream>
+#include <string>
+#ifdef SLG_ENABLE_DEBUG
+inline void print_debug(const std::string &M) {
+	std::cout << "[DEBUG] " << M << std::endl;
+}
+#endif
+
+#ifdef SLG_ENABLE_ERROR
+inline void print_error(const std::string &M) {
+	std::cout << "[ERROR] " << M << std::endl;
+}
+#endif
+
+#ifdef SLG_ENABLE_INFO
+inline void print_info(const std::string &M) {
+	std::cout << "[INFO] " << M << std::endl;
+}
+#endif
+
+#endif
+\end{lstlisting}
+
+The goal here is to use these APIs in our code without writing the \#include "simple\_log.h" line to import the header file. And this feature will only be enabled when we give a custom driver flag, -fuse-simple-log, to clang. For example, let's write the following code, test.cc:
+
+\begin{lstlisting}[style=styleCXX]
+int main() {
+	print_info("Hello world!!");
+	return 0;
+}
+\end{lstlisting}
+
+Despite its lack of any \#include directives, it can still be compiled (with the -fusesimple-log flag) and run without any problems:
+
+\begin{tcblisting}{commandshell={}}
+$ clang++ -fuse-simple-log test.cc -o test
+$ ./test
+[INFO] Hello world!!
+$
+\end{tcblisting}
+
+Moreover, we can use -fuse-<log level>-simple-log /-fno-use-<log level>-simple-log to include or exclude a function for a specific log level. For example, let's use the same preceding code snippets but add -fno-use-info-simplelog when we compile the code:
+
+\begin{tcblisting}{commandshell={}}
+$ clang++ -fuse-simple-log -fno-use-info-simple-log test.cc -o
+test
+test.cc:2:3: error: use of undeclared identifier 'print_info'
+  print_info("Hello World!!");
+  ^
+1 error generated
+$
+\end{tcblisting}
+
+The switch for each log printing function is simply controlled by its surrounding \#ifdef statements in simple\_log.h. For example, print\_info will only be included if SLG\_ENABLE\_INFO is defined. Later, in the Translating custom driver flags section, we will show you how these macro definitions are toggled by driver flags.
+
+Last but not least, you can specify a custom path to the simple\_log.h file. By default, our feature will include simple\_log.h in the current folder of the source code. You can change this by supplying -fsimple-log-path=<file path> or -fuse-simplelog=<file path>. For example, we want to use an alternative version of simple\_log.h – advanced\_log.h, which is stored in /home/user – which provides functions with the same interfaces but different implementations. Now, we can use the following commands:
+
+\begin{tcblisting}{commandshell={}}
+$ clang++ -fuse-simple-log=/home/user/advanced_log.h test.cc -o
+test
+[01/28/2021 20:51 PST][INFO] Hello World!!
+$
+\end{tcblisting}
+
+The following section will show you how to change the code in Clang's driver so that you can implement these features.
+
+\subsubsubsection{8.3.2\hspace{0.2cm}Declaring custom driver flags}
+
+First, we will lead you through the steps to declare custom driver flags such as -fusesimple-log and -fno-use-info-simple-log. Then, we are going to wire those flags to the real frontend functionalities.
+
+Clang uses TableGen syntax to declare all kinds of compiler flags – both driver flags and frontend flags.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=TableGen]	
+\hspace*{0.7cm}TableGen is a Domain-Specific Language (DSL) that's used for declaring structural and relational data. To learn more, please check out Chapter 4, TableGen Development.
+\end{tcolorbox}
+
+All these flag declarations are put in clang/include/clang/Driver/Options.td. Take the common -g flag, for example, which tells you that you want to generate sourcelevel debug information. For example, it has a declaration like this:
+
+\begin{lstlisting}[style=stylePython]
+def g_Flag : Flag<["-"], "g">, Group<g_Group>,
+  HelpText<"Generate source-level debug information">;
+\end{lstlisting}
+
+The TableGen record, g\_Flag, is created from several TableGen classes: Flag, Group, and HelpText. Among them, we are most interested in Flag, whose template values (["-"] and "g") describe the actual command-line flag format. Note that when we are declaring a boolean flag – the value of this flag is determined by its presence and no other values follow – as in this case, we inherit from the Flag class.
+
+In cases where we want to declare a flag that has values that follow an equal sign ("="), we inherit from the Joined class. For example, the TableGen declaration for -std=<C++ standard name> looks like this:
+
+\begin{lstlisting}[style=styleJavaScript]
+def std_EQ : Joined<["-", "--"], "std=">, Flags<[CC1Option]>,
+…;
+\end{lstlisting}
+
+Usually, the record names (std\_EQ, in this case) for these kinds of flags have \_EQ as their suffices.
+
+Last but not least, the Flags (plural) class can be used to specify some properties. For example, CC1Options in the preceding snippet tells us that this flag can also be a frontend flag.
+
+Now that we've learned how driver flags are generally declared, it is time to create our own:
+
+\begin{enumerate}
+\item First, we are going to deal with the -fuse-simple-log flag. Here is how we declare it:
+
+\begin{lstlisting}[style=styleJavaScript]
+def fuse_simple_log : Flag<["-"], "fuse-simple-log">,
+                 Group<f_Group>, Flags<[NoXarchOption]>;
+\end{lstlisting}
+
+This snippet basically has no differences from the examples we used previously, except for the Group class and NoXarchOption. The former specifies the logical group this flag belongs to – for example, f\_Group is for flags starting with -f. The latter tells us that this flag can only be used in the driver. You cannot, for example, pass it to the frontend (but how do we pass flags directly to the frontend? We will answer this question shortly, at the end of this section).
+
+Note that we only declare -fuse-simple-log here but not -fuse-simplelog=<file path> – that will be done in another flag that we will introduce shortly.
+
+\item Next, we are dealing with -fuse-<log level>-simple-log and -fno-use-<log level>-simple-log. In both GCC and Clang, it is pretty common to see pairwise flags such as -f<flag name>/-fno-<flag name> to enable or disable a certain feature. Therefore, Clang provides a handy TableGen utility – BooleanFFlag – to make creating pairwise flags easier. Please see the declarations for -fuse-error-simple-log/-fno-use-error-simple-log in the following code:
+
+\begin{lstlisting}[style=styleJavaScript]
+defm use_error_simple_log : BooleanFFlag<"use-errorsimple-log">,
+   Group<f_Group>, Flags<[NoXarchOption]>;
+\end{lstlisting}
+
+BooleanFFlag is a multiclass (so make sure you use defm rather than def to create the TableGen record). Under the hood, it creates TableGen records for both -f<flag name> and -fno-<flag name> at the same time.
+
+Now that we've learned how use\_error\_simple\_log was created, we can use the same trick to create TableGen records for other log levels:
+
+\begin{lstlisting}[style=styleJavaScript]
+defm use_debug_simple_log : BooleanFFlag<"use-debugsimple-log">, 
+   Group<f_Group>, Flags<[NoXarchOption]>;
+defm use_info_simple_log : BooleanFFlag<"use-info-simplelog">, 
+   Group<f_Group>, Flags<[NoXarchOption]>;
+\end{lstlisting}
+
+\item Finally, we are declaring the -fuse-simple-log=<file path> and -fsimple-log-path=<file path> flags. In the previous steps, we were only dealing with boolean flags, but here, we are creating flags that have values that follow the equal sign, so we are using the Joined class we introduced earlier:
+
+\begin{lstlisting}[style=styleJavaScript]
+def fsimple_log_path_EQ : Joined<["-"], "fsimple-logpath=">, 
+  Group<f_Group>, Flags<[NoXarchOption]>;
+def fuse_simple_log_EQ : Joined<["-"], "fuse-simplelog=">, 
+  Group<f_Group>, Flags<[NoXarchOption]>;
+\end{lstlisting}
+
+Again, flags with values will usually use \_EQ in their TableGen record name suffix.
+
+\end{enumerate}
+
+That wraps up all the necessary steps for declaring our custom driver flags. During Clang's building process, these TableGen directives will be translated into C++ enums and other utilities that are used by the driver. For example, -fuse-simple-log=<file path> will be represented by an enum; that is, options::OPT\_fuse\_simple\_log\_EQ. The next section will show you how to query these flags from all the command-line flags given by users and, most importantly, how to translate our custom flags into their frontend counterparts.
+
+\subsubsubsection{8.3.3\hspace{0.2cm}Translating custom driver flags}
+
+Recall that compiler drivers do a lot of things for users under the hood. For instance, they figure out the correct toolchain based on the compilation target and translate driver flags that have been designated by users, which is what we are going to do next. In our case here, we want to include the simple\_log.h header file for users when our newly created -fuse-simple-log is given and define macro variables such as SLG\_ENABLE\_ERROR to include or exclude certain log printing functions, depending on the -fuse-<log level>-simple-log/-fno-use-<log level>-simple-log flags. More specifically, these tasks can be broken down into two parts:
+
+\begin{itemize}
+\item If -fuse-simple-log is given, we are translating it into a frontend flag:
+
+\begin{tcblisting}{commandshell={}}
+-include "simple_log.h"
+\end{tcblisting}
+
+The -include frontend flag, as its name suggests, implicitly includes the designated file in the compiling source code. 
+
+Using the same logic, if -fuse-simple-log=/other/file.h or -fusesimple-log -fsimple-log-path=/other/file.h are given, they will be translated into the following:
+
+\begin{tcblisting}{commandshell={}}
+-include "/other/file.h"
+\end{tcblisting}
+
+\item If either -fuse-<log level>-simple-log or -fno-use-<log level>-simple-log is given – for instance, -fuse-error-simple-log – it will be translated into the following:
+
+\begin{tcblisting}{commandshell={}}
+-D SLG_ENABLE_ERROR
+\end{tcblisting}
+
+The -D flag implicitly defines a macro variable for the compiling source code. However, if only -fuse-simple-only is given, the flag will implicitly include all the log printing functions. In other words, -fuse-simple-only will not only be translated into the -include flag, as introduced in previous bullet point, but also the following flags:
+
+\begin{tcblisting}{commandshell={}}
+-D SLG_ENABLE_ERROR -D SLG_ENABLE_DEBUG -D SLG_ENABLE_INFO
+\end{tcblisting}
+
+Let's say a combination of -fuse-simple-log and -fno-use-<log level>-simple-log are used together, for example:
+
+\begin{tcblisting}{commandshell={}}
+-fuse-simple-log -fno-use-error-simple-log
+\end{tcblisting}
+
+They will be translated into the following code:
+
+\begin{tcblisting}{commandshell={}}
+-include "simple_log.h" -D SLG_ENABLE_DEBUG -D SLG_ENABLE_INFO
+\end{tcblisting}
+
+Last but not least, we also allow the following combinations:
+
+\begin{tcblisting}{commandshell={}}
+-fuse-info-simple-log -fsimple-log-path="my_log.h"
+\end{tcblisting}
+
+That is, we only enable a single log printing function without using -fusesimple-log (instead of using the latter flag and subtracting two other log printing functions) and use a custom simple log header file. These driver flags will be translated into the following code:
+
+\begin{tcblisting}{commandshell={}}
+-include "my_log.h" -D SLG_ENABLE_INFO
+\end{tcblisting}
+
+The aforementioned rules and combinations of flags can actually be handled in a pretty elegant way, albeit being complex at first glance. We will show you how to do this shortly.
+
+\end{itemize}
+
+Now that we have learned what frontend flags we are going to translate to, it is time to learn how to do these translations. 
+
+The place where many driver flags translations happen is inside the driver::tools::Clang C++ class. More specifically, this happens in its Clang::ConstructJob method, which is located in the clang/lib/Driver/ToolChains/Clang.cpp file.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=About driver::tools::Clang]	
+\hspace*{0.7cm}Some of the most prominent questions for this C++ class are probably, what concept does it represent? Why is it put under the folder named ToolChains? Does that mean it is also a toolchain? While we will answer these questions in detail in the next section, Adding a custom toolchain, for now, you can just think of it as the representative of Clang's frontend. This (kind of) explains why it is responsible for translating driver flags into frontend ones.
+\end{tcolorbox}
+
+Here are the steps to translate our custom driver flags. The following code can be inserted anywhere within the Clang::ConstructJob method, before the addDashXForInput function is called, which starts to wrap up the translation process:
+
+\begin{enumerate}
+\item First, we are defining a help class – SimpleLogOpts – to carry our custom flag's information:
+\begin{lstlisting}[style=styleCXX]
+struct SimpleLogOpts {
+	// If a certain log level is enabled
+	bool Error = false,
+	     Info = false,
+	     Debug = false;
+	static inline SimpleLogOpts All() {
+		return {true, true, true};
+	}
+	// If any of the log level is enabled
+	inline operator bool() const {
+		return Error || Info || Debug;
+	}
+};
+// The object we are going to work on later
+SimpleLogOpts SLG;
+\end{lstlisting}
+
+The bool fields in SimpleLogOpts – Error, Info, and Debug – represent log levels that are enabled by our custom flags. We also define a helper function SimpleLogOpts::All() to create a SimpleLogOpts in which all log levels are enabled, and a bool type conversion operator such that we can use a cleaner syntax, shown here, to tell us if any of the levels are enabled:
+
+\begin{lstlisting}[style=styleCXX]
+if (SLG) {
+	// At least one log level is enabled!
+}
+\end{lstlisting}
+
+\item Let's handle the simplest case first – the -fuse-simple-log flag. In this step, we are only going to turn on all the log levels in SLG when we see a -fuse-simplelog flag.
+
+Inside the Clang::ConstructJob method, the driver flags given by users are  stored in the Args variable (one of the arguments for ConstructJob), which is of the ArgList type. There are many ways to query Args, but here, since we only care about the presence of -fuse-simple-log, hasArg is the most suitable option:
+
+\begin{lstlisting}[style=styleCXX]
+if (Args.hasArg(options::OPT_fuse_simple_log)) {
+	SLG = SimpleLogOpts::All();
+}
+\end{lstlisting}
+
+Each flag we declared in the previous code via TableGen syntax will be represented by a unique enum under the options namespace. In this case, the enum value is OPT\_fuse\_simple\_log. The name of the enum value is usually OPT\_, followed by the TableGen record name (that is, the name follows def or defm) when we were declaring the flag. The ArgList::hasArg function will return true if the given flag identifier is present in the input driver flags.
+
+In addition to -fuse-simple-log, we also need to turn on all the log levels when -fuse-simple-log=<file path> is given, even though we are only going to handle the file path that follows later. Thus, we will change the preceding snippet into the following:
+
+\begin{lstlisting}[style=styleCXX]
+if (Args.hasArg(options::OPT_fuse_simple_log,
+                options::OPT_fuse_simple_log_EQ)) {
+	SLG = SimpleLogOpts::All();
+}
+\end{lstlisting}
+
+ArgList::hasArg can actually take multiple flag identifiers and return true if any of them are present in the input driver flags. And again, the -fuse-simplelog=<…> flag is represented by OPT\_fuse\_simple\_log\_EQ since its TableGen record name is fuse\_simple\_log\_EQ.
+
+\item Next, we are going to handle -fuse-<log level>-simple-log/-fno-use-<log level>-simple-log. Taking the error level, as an example (flags for other levels are used in the exact same way, so we are not showing them here), here, we are leveraging the ArgList::hasFlag function:
+
+\begin{lstlisting}[style=styleCXX]
+SLG.Error = Args.hasFlag(options::OPT_fuse_error_simple_
+log, options::OPT_fno_use_error_simple_log, SLG.Error);
+\end{lstlisting}
+
+The hasFlag function will return true or false if the flag that's represented by the first (OPT\_fuse\_error\_simple\_log here) or second (OPT\_fno\_use\_error\_simple\_log here) argument is present in the input driver flags, respectively.
+
+If neither of the flags are present, hasFlag will return a default value that's designated by its third argument (SLG.Error, in this case).
+
+Using this mechanism, we have already implemented some of the (complex) rule and flag combinations we mentioned earlier in this section:
+
+\begin{enumerate}[label=\alph*)]
+\item  The -fno-use-<log level>-simple-log flags can disable certain log printing function(s) when -fuse-simple-log – which effectively includes all the log printing functions in the first place – is present.
+
+\item Even without the presence of -fuse-simple-log, we can still enable individual log printing functions by using the -fuse-<log level>-simple-log flag(s)
+\end{enumerate}
+
+\item Currently, we are only playing around with the SimpleLogOpts data structure. Starting from the next step, we will start to generate frontend flags according to the SimpleLogOpts instance we have built so far. The first frontend flag we are generating here is -include <file path>. First, it only makes sense to proceed if at least one log level has been enabled. Therefore, we will wrap the generation of -include with an if statement by checking on SLG, as we explained earlier:
+
+\begin{lstlisting}[style=styleCXX]
+if (SLG) {
+	CmdArgs.push_back("-include");
+	…
+}
+\end{lstlisting}
+
+The CmdArgs (a local variable – with a vector-like type – inside Clang::ConstructJob) is the place where we will put our frontend flags.
+
+Note that you cannot push a frontend flag containing any white space. For instance, you cannot do something like this:
+
+\begin{lstlisting}[style=styleCXX]
+if (SLG) {
+	CmdArgs.push_back("-include simple_log.h"); // Error
+	…
+}
+\end{lstlisting}
+
+This is because, eventually, this vector (CmdArgs) will be treated as argv, which we can see in the main function of C/C++, and any white space within a single argument will create failures when those arguments are realized.
+
+Instead, we are pushing the path to a simple log header file separately, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+if (SLG) {
+	CmdArgs.push_back("-include");
+	if (Arg *A = Args.getLastArg(options::OPT_fuse_simple_
+	log_EQ, options::OPT_fsimple_log_path_EQ))
+ 	  CmdArgs.push_back(A->getValue());
+	else
+	  CmdArgs.push_back("simple_log.h");
+	…
+}
+\end{lstlisting}
+
+The ArgList::getLastArg function will retrieve the value (the last value, if there are multiple occurrences of the same flag), follow a given flag, and return null if none of those flags are present. For instance, in this case, the flag is -fusesimple-log= (-fsimple-log-path= in the second argument is just the alias flag of the first one).
+
+\item Finally, we are generating frontend flags that control which log printing functions should be enabled. Again, we are only showing the code for one of the log levels here since other levels are using the same approach:
+
+\begin{lstlisting}[style=styleCXX]
+if (SLG) {
+	…
+	if (SLG.Error) {
+		CmdArgs.push_back("-D");
+		CmdArgs.push_back("SLG_ENABLE_ERROR");
+	}
+	…
+}
+\end{lstlisting}
+
+\end{enumerate}
+
+These are basically all the modifications that are required for our project. The final thing we must do before we move on is verify our work. Recall the -\#\#\# command-line flag, which is used to print all the flags that are passed to the frontend. We are using it here to see if our custom driver flags are translated properly.
+
+First, let's try this command:
+
+\begin{tcblisting}{commandshell={}}
+$ clang++ -### -fuse-simple-log -c test.cc
+\end{tcblisting}
+
+The output should contain these strings:
+
+\begin{tcblisting}{commandshell={}}
+"-include" "simple_log.h" "-D" "SLG_ENABLE_ERROR" "-D" "SLG_ENABLE_INFO" 
+"-D" "SLG_ENABLE_DEBUG"
+\end{tcblisting}
+
+Now, let's try the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ clang++ -### -fuse-simple-log=my_log.h -fno-use-error-simplelog -c test.cc
+\end{tcblisting}
+
+Tthe output should contain these strings:
+
+\begin{tcblisting}{commandshell={}}
+"-include" "my_log.h" "-D" "SLG_ENABLE_INFO" "-D" "SLG_ENABLE_DEBUG"
+\end{tcblisting}
+
+Finally, let's use the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ clang++ -### -fuse-info-simple-log -fsimple-log-path=my_log.h
+-c test.cc
+\end{tcblisting}
+
+The output should contain the following strings :
+
+\begin{tcblisting}{commandshell={}}
+"-include" "my_log.h" "-D" "SLG_ENABLE_INFO"
+\end{tcblisting}
+
+In the last subsection of this section, we are going to talk about some miscellaneous ways to pass flags to the frontend.
+
+\subsubsubsection{8.3.4\hspace{0.2cm}Passing flags to the frontend}
+
+In the previous sections, we showed you the differences between driver flags and frontend flags, how they are related, and how Clang's driver translates the former into the latter. At this point, you might be wondering, can we skip through the driver and pass the flags directly to the frontend? What flags are we allowed to pass?
+
+The short answer for the first question is yes, and you have actually already done that several times in previous chapters. Recall that in Chapter 7, Handling AST, we developed a plugin – more specifically, an AST plugin. We were using command-line arguments like the one shown here to load and run our plugin inside Clang:
+
+\begin{tcblisting}{commandshell={}}
+$ clang++ -fplugin=MyPlugin.so \
+            -Xclang -plugin -Xclang ternary-converter \
+            -fsyntax-only test.cc
+\end{tcblisting}
+
+You might already find that, somehow, we need to precede a -Xclang flag before the -plugin and ternary-converter arguments. And the answer is simple: this is because -plugin (and its value, ternary-converter) is a frontend-only flag.
+
+To pass a flag directly to the frontend, we can put -Xclang in front of it. But there is a caveat of using -Xclang: a single -Xclang will only relay one succeeding command-line argument (a string without any whitespace) to the frontend. In other words, you cannot rewrite the preceding plugin loading example like this:
+
+\begin{tcblisting}{commandshell={}}
+# Error: `ternary-converter` will not be recognized
+$ clang++ -fplugin=MyPlugin.so \
+            -Xclang -plugin ternary-converter \
+            -fsyntax-only test.cc
+\end{tcblisting}
+
+This is because -Xclang will only transfer -plugin to the frontend and leave ternary-converter behind, in which case Clang will fail to know which plugin to run.
+
+Another way to pass flags directly to the frontend would be using -cc1. Recall that when we were using -\#\#\# to print out the frontend flags that had been translated by the driver in the previous sections, among those frontend flags, the first one that followed the path to the clang executable was always -cc1. This flag effectively collects all the commandline arguments and sends them to the frontend. Though this looks handy – there's no need to prefix every flag we want to pass to the frontend with -Xclang anymore – be careful that you are not allowed to mix any driver-only flags inside that list of flags. For example, earlier in this section, when we were declaring our -fuse-simple-log flag in TableGen syntax, we annotated the flag with NoXarchOption, which stated that it can only be used by the driver. In that case, -fuse-simple-log cannot appear after -cc1.
+
+This leads us to our final question: what flags can be used by either the driver or the frontend, and what flags are accepted by both? The answer can actually be seen via NoXarchOption, which was just mentioned. When declaring flags – either for the driver or the frontend – in TableGen syntax, you can use the Flags<…> TableGen class and its template parameters to enforce some constraints. For instance, using the following directives, you can prevent the -foo flag from being used by the driver:
+
+\begin{lstlisting}[style=styleJavaScript]
+def foo : Flag<["-"], "foo">, Flags<[NoDriverOption]>;
+\end{lstlisting}
+
+In addition to NoXarchOption and NoDriverOption, here are some other common annotations you can use in Flags<…>:
+
+\begin{itemize}
+\item CoreOption: States that this flag can be shared by both clang and clang-cl. clang-cl is an interesting driver that is compatible with the command-line interface (including command-line arguments) used by MSVC (the compiler framework used by Microsoft Visual Studio).
+
+\item CC1Option: States that this flag can be accepted by the frontend. It doesn't say it's a frontend-only flag, though.
+
+\item Ignored: States that this flag is going to be ignored by Clang's driver (but continue the compilation process). GCC has many flags that are not supported in Clang (either obsolete or just not applicable). However, Clang actually tries to recognize those flags but does nothing except show a warning message about a lack of implementation. The rationale behind this is we hope that Clang can be a drop-in replacement for GCC without the need to modify the existing building scripts in many projects (without this compatibility layer, Clang will terminate the compilation when it sees unknown flags).
+\end{itemize}
+
+ In this section, we learned how to add custom flags for Clang's driver and implemented  the logic to translate them into frontend flags. This skill is pretty useful when you want to  toggle custom features in a more straightforward and clean way.
+ 
+ In the next section, we are going to learn the role of a toolchain and how it works in Clang  by creating our own custom one.
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 

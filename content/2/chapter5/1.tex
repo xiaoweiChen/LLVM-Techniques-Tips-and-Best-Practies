@@ -1,0 +1,28 @@
+In Chapter 1, Saving Resources When Building LLVM, we showed you how to build LLVM. Those instructions, however, did not build Clang. To include Clang in the build list, please edit the value that's been assigned to the LLVM\_ENABLE\_PROJECTS CMake variable, like so:
+
+\begin{tcblisting}{commandshell={}}
+$ cmake -G Ninja -DLLVM_ENABLE_PROJECTS="clang;clang-toolsextra" …
+\end{tcblisting}
+
+The value of that variable should be a semi-colon-separated list, where each item is one of LLVM's subprojects. In this case, we're including Clang and clang-tools-extra, which contains a bunch of useful tools based on Clang's techniques. For example, the clang-format tool is used by countless open source projects, especially large-scale ones, to impose a unified coding style in their code base.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Adding Clang to an existing build]
+\hspace*{0.7cm}If you already have an LLVM build where Clang was not enabled, you can edit the LLVM\_ENABLE\_PROJECTS CMake argument's value in CMakeCache.txt without invoking the original CMake command again. CMake should reconfigure itself once you've edited the file and run Ninja (or a build system of your choice) again.
+\end{tcolorbox}
+
+You can build clang, Clang's driver, and the main program using the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja clang
+\end{tcblisting}
+
+You can run all the Clang tests using the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja check-clang
+\end{tcblisting}
+
+Now, you should have the clang executable in the /<your build directory>/bin folder.
+
+
+

@@ -1,0 +1,45 @@
+
+
+This chapter expects that you have a build of the clang executable. If you don't, please build it using the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja clang
+\end{tcblisting}
+
+In addition, you can use the following command-line flag to print out the textual representation of AST:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -Xclang -ast-dump foo.c
+\end{tcblisting}
+
+For example, let's say foo.c contains the following content:
+
+\begin{lstlisting}[style=styleCXX]
+int foo(int c) { return c + 1; }
+\end{lstlisting}
+
+By using the -Xclang -ast-dump command-line flag, we can print out AST for foo.c:
+
+\begin{tcblisting}{commandshell={}}
+TranslationUnitDecl 0x560f3929f5a8 <<invalid sloc>> <invalid sloc>
+|…
+`-FunctionDecl 0x560f392e1350 <foo.c:2:1, col:30> col:5 foo
+'int (int)'
+  |-ParmVarDecl 0x560f392e1280 <col:9, col:13> col:13 used c 'int'
+  `-CompoundStmt 0x560f392e14c8 <col:16, col:30>
+    `-ReturnStmt 0x560f392e14b8 <col:17, col:28>
+      `-BinaryOperator 0x560f392e1498 <col:24, col:28> 'int' '+'
+        |-ImplicitCastExpr 0x560f392e1480 <col:24> 'int' <LValueToRValue>
+        | `-DeclRefExpr 0x560f392e1440 <col:24> 'int' lvalue ParmVar 
+        0x560f392e1280 'c' 'int'
+        `-IntegerLiteral 0x560f392e1460 <col:28> 'int' 1
+\end{tcblisting}
+
+This flag is useful for finding out what C++ class is used to represent a certain part of the code. For example, the formal function parameter/argument is represented by the ParmVarDecl class, which is highlighted in the previous code.
+
+The code samples for this chapter can be found here: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter07}.
+
+
+
+
+

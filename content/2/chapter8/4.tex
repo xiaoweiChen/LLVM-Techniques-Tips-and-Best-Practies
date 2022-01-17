@@ -1,0 +1,518 @@
+
+In the previous section, we learned how to add custom flags for the driver in Clang and learned how the driver translated them into flags that are accepted by the frontend. In this section, we are going to talk about the toolchain – an important module inside the driver that helps it adapt to different platforms.
+
+Recall that in the first section of this chapter, Understanding drivers and toolchains in Clang, we showed the relationships between driver and toolchains in Figure 8.1: the driver chooses a proper toolchain based on the target platform before leveraging its knowledge to do the following:
+
+\begin{enumerate}
+\item LExecute the correct assembler, linker, or any tool that is required for the target code's generation.
+
+\item Pass platform-specific flags to the compiler, assembler, or linker.
+\end{enumerate}
+
+This information is crucial for building the source code since each platform might have its own unique characteristics, such as system library paths and supported assembler/linker variants. Without them, a correct executable or library cannot even be generated.
+
+This section hopes to teach you how to create Clang toolchains for custom platforms in the future. The toolchain framework in Clang is powerful enough to be adapted to a wide variety of use cases. For example, you can create a toolchain that resembles conventional compilers on Linux – including using GNU AS to assemble and GNU LD for linking – without you needing to make many customizations to a default library path or compiler flags. On the other hand, you can have an exotic toolchain that does not even use Clang to compile source code and uses a propriety assembler and linker with uncommon command-line flags. This section will try to use an example that catches the most common use cases without missing this framework's flexible aspect.
+
+This section is organized as follows: as usual, we will start with an overview of the project we are going to work on. After that, we will break down our project workload into three parts – adding custom compiler options, setting up a custom assembler, and setting up a custom linker – before we put them together to wrap up this section.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=System requirements]	
+\hspace*{0.7cm}As another friendly reminder, the following project can only work on Linux systems. Please make sure OpenSSL is installed.
+\end{tcolorbox}
+
+\subsubsubsection{8.4.1\hspace{0.2cm}Project overview}
+
+We are going to create a toolchain called Zipline, which still uses Clang (its frontend and backend) to do normal compilation but encode the generated assembly code using Base64 during the assembling phase, and package those Base64-encoded files into a ZIP file (or .tarbell file) during the linking phase.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Base64]	
+\hspace*{0.7cm}Base64 is an encoding scheme that is commonly used to convert binary into plain text. It can be easily transmitted in a context that does not support binary format (for example, HTTP headers). You can also apply Base64 to normal textual files, just like in our case.
+\end{tcolorbox}
+
+This toolchain is basically useless in production environments. It's merely a demo that emulates common situations a developer might encounter when they're creating a new toolchain for custom platforms.
+
+This toolchain is enabled by a custom driver flag, -zipline/--zipline. When the flag is provided, first, the compiler will implicitly add the my\_include folder to your home directory as one of the header files searching the path. For example, recall that in the previous section, Adding custom driver flags, our custom -fuse-simple-log flag would implicitly include a header file, simple\_log.h, in the input source code:
+
+\begin{tcblisting}{commandshell={}}
+$ ls
+main.cc simple_log.h
+$ clang++ -fuse-simple-log -fsyntax-only main.cc
+$ # OK
+\end{tcblisting}
+
+However, if simple\_log.h is not in the current directory, as in the preceding snippet, we need to specify its full path via another flag:
+
+\begin{tcblisting}{commandshell={}}
+$ ls .
+# No simple_log.h in current folder
+main.cc
+$ clang++ -fuse-simple-log=/path/to/simple_log.h -fsyntax-only
+main.cc
+$ # OK
+\end{tcblisting}
+
+With the help of Zipline, you can put simple\_log.h inside /home/<user name>/my\_include, and the compiler will find it:
+
+\begin{tcblisting}{commandshell={}}
+$ ls .
+# No simple_log.h in current folder
+main.cc
+$ ls ~/my_include
+simple_log.h
+$ clang++ -zipline -fuse-simple-log -fsyntax-only main.cc
+$ # OK
+\end{tcblisting}
+
+The second feature of Zipline is that the clang executable will compile the source code into assembly code that's encoded by Base64 under the -c flag, which was supposed to assemble the assembly file – coming out from the compiler – into an object file. Here is an example command:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -zipline -c test.c
+$ file test.o
+test.o: ASCII text # Not (binary) object file anymore
+$ cat test.o
+CS50ZXh0CgkuZmlsZQkidGVzdC5jYyIKCS
+5nbG9ibAlfWjNmb29pCgkucDJhbGln
+
+bgk0LCAweDkwCgkudHlwZQlfWjNmb29p
+LEBmdW5jdGlvbgpfWjNmb29pOgoJLmNm
+
+… # Base64 encoded contents
+$
+\end{tcblisting}
+
+The preceding file command showed that the generated file, test.o, from the previous invocation of clang, is no longer a binary format object file. The content of this file is now a Base64-encoded version of the assembly code that was generated from the compiler's backend.
+
+Finally, Zipline replaces the original linking stage with a custom one that packages and compresses the aforementioned Base64-encoded assembly files into a .zip file. Here is an example:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -zipline test.c -o test.zip
+$ file test.zip
+test.zip: Zip archive, at least v2.0 to extract
+$
+\end{tcblisting}
+
+If you unzip test.zip, you will find that those extracted files are Base64-encoded assembly files, as we mentioned earlier.
+
+Alternatively, we can use Linux's tar and gzip utilities to package and compress them in Zipline. Let's look at an example:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -zipline -fuse-ld=tar test.c -o test.tar.gz
+$ file test.tar.gz
+test.tar.gz: gzip compressed data, from Unix, original size…
+$
+\end{tcblisting}
+
+By using the existing -fuse-ld=<linker name> flag, we can choose between using zip or tar and gzip for our custom linking phase.
+
+In the next section, we are going to create the skeleton code for this toolchain and show you how to add an additional folder to the header file searching path.
+
+\subsubsubsection{8.4.2\hspace{0.2cm}Creating the toolchain and adding a custom include path}
+
+In this section, we are going to create the skeleton for our Zipline toolchain and show you how to add an extra include folder path – more specifically, an extra system include path – to the compilation stage within Zipline. Here are the detailed steps:
+
+\begin{enumerate}
+\item Before we add a real toolchain implementation, don't forget that we are going to use a custom driver flag, -zipline/--zipline, to enable our toolchain. Let's use the same skill we learned in the previous section, Adding custom driver flags, to do that. Inside clang/include/clang/Driver/Options.td, we will add the following lines:
+
+\begin{lstlisting}[style=styleJavaScript]
+// zipline toolchain
+def zipline : Flag<["-", "--"], "zipline">,
+Flags<[NoXarchOption]>;
+\end{lstlisting}
+
+Again, Flag tells us this is a boolean flag and NoXarchOption tells us that this flag is driver-only. We will use this driver flag shortly
+
+\item Toolchains in Clang are represented by the clang::driver::ToolChain class. Each toolchain supported by Clang is derived from it, and their source files are put under the clang/lib/Driver/ToolChains folder. We are going to create two new files there: Zipline.h and Zipline.cpp.
+
+\item For Zipline.h, let's add the following skeleton code first:
+\begin{lstlisting}[style=styleCXX]
+namespace clang {
+namespace driver {
+namespace toolchains {
+struct LLVM_LIBRARY_VISIBILITY ZiplineToolChain
+: public Generic_ELF {
+	ZiplineToolChain(const Driver &D, const llvm::Triple
+	&Triple, const llvm::opt::ArgList &Args)
+	: Generic_ELF(D, Triple, Args) {}
+	~ZiplineToolChain() override {}
+	// Disable the integrated assembler
+	bool IsIntegratedAssemblerDefault() const override
+	{ return false; }
+	bool useIntegratedAs() const override { return false; }
+	void
+	AddClangSystemIncludeArgs(const llvm::opt::ArgList
+	&DriverArgs, llvm::opt::ArgStringList &CC1Args)
+	const override;
+protected:
+	Tool *buildAssembler() const override;
+	Tool *buildLinker() const override;
+};
+} // end namespace toolchains
+} // end namespace driver
+} // end namespace clang
+\end{lstlisting}
+
+The class we created here, ZiplineToolChain, is derived from Generic\_ELF, which is a subclass of ToolChain that's specialized for systems that use ELF as its execution format – including Linux. In addition to the parent class, there are three important methods that we are going to implement in this or later sections: AddClangSystemIncludeArgs, buildAssembler, and buildLinker.
+
+\item The buildAssembler and buildLinker methods generate Tool instances that represent the commands or programs to be run in the assembling and linking stages, respectively. We will cover them in the following sections. Now, we are going to implement the AddClangSystemIncludeArgs method. Inside Zipline. cpp, we will add its method body:
+
+\begin{lstlisting}[style=styleCXX]
+void ZiplineToolChain::AddClangSystemIncludeArgs(
+                       const ArgList &DriverArgs,
+                       ArgStringList &CC1Args) const {
+	using namespace llvm;
+	SmallString<16> CustomIncludePath;
+	sys::fs::expand_tilde("~/my_include",
+	                      CustomIncludePath);
+	addSystemInclude(DriverArgs,
+	                 CC1Args, CustomIncludePath.c_str());
+}
+\end{lstlisting}
+
+The only thing we are doing here is calling the addSystemInclude function with the full path to the my\_include folder located in the home directory. Since each user's home directory is different, we are using the sys::fs::expand\_tilde helper function to expand ~/my\_include – where ~ represents the home directory in Linux and Unix systems – in the absolute path. The addSystemInclude function, on the other hand, helps you add "-internalisystem" "/path/to/my\_include" flags to the list of all the frontend flags. The -internal-isystem flag is used for designating folders of system header files, including standard library headers and some platform-specific header files.
+
+\item Last but not least, we need to teach the driver to use the Zipline toolchain when it sees our newly created -zipline/--zipline driver flag. We are going to modify the Driver::getToolChain method inside clang/lib/Driver/Driver. cpp to do so. The Driver::getToolChain method contains a huge switch case for selecting different toolchains based on the target operating system and hardware architecture. Please navigate to the code handling the Linux system; we are going to add an extra branch condition there:
+
+\begin{lstlisting}[style=styleCXX]
+const ToolChain
+&Driver::getToolChain(const ArgList &Args,
+const llvm::Triple &Target) const {
+	…
+	switch (Target.getOS()) {
+		case llvm::Triple::Linux:
+		…
+		  else if (Args.hasArg(options::OPT_zipline))
+		    TC = std::make_unique<toolchains::ZiplineToolChain>
+		    (*this, Target, Args);
+		…
+		  break;
+		case …
+		case …
+	}
+}
+\end{lstlisting}
+
+The extra else-if statement basically says that if the target OS is Linux, then we will use Zipline when the -zipline/--zipline flag is given.
+
+\end{enumerate}
+
+With that, you have added the skeleton of Zipline and successfully told the driver to use Zipline when a custom driver flag is given. On top of that, you've also learned how to add extra system library folders to the header file search path.
+
+In the next section, we are going to create a custom assembling stage and connect it to the toolchain we created here.
+
+\subsubsubsection{8.4.3\hspace{0.2cm}Creating a custom assembling stage}
+
+As we mentioned in the Project overview section, instead of doing regular assembling to convert assembly code into an object file in the assembling stage of Zipline, we are invoking a program to convert the assembly file we generated from Clang into its Base64-encoded counterpart. Before we go deeper into its implementation, let's learn how each of these stages in a toolchain is represented.
+
+In the previous section, we learned that a toolchain in Clang is represented by the ToolChain class. Each of these ToolChain instances is responsible for telling the driver what tool to run in each compilation stage – namely compiling, assembling, and linking. And this information is encapsulated inside a clang::driver::Tool type object. Recall the buildAssembler and buildLinker methods in the previous section; they return the very Tool type objects that depict the actions to perform and the tool to run in the assembling and linking stages, respectively. In this section, we will show you how to implement the Tool object that's returned by buildAssembler. Let's get started:
+
+\begin{enumerate}
+\item Let's go back to Zipline.h first. Here, we are adding an extra class, Assembler, inside the clang::driver::tools::zipline namespace:
+
+\begin{lstlisting}[style=styleCXX]
+namespace clang {
+namespace driver {
+namespace tools {
+namespace zipline {
+	struct LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
+		Assembler(const ToolChain &TC)
+		  : Tool("zipeline::toBase64", "toBase64", TC) {}
+		bool hasIntegratedCPP() const override { return false;
+		}
+	void ConstructJob(Compilation &C, const JobAction &JA,
+	const InputInfo &Output,
+	const InputInfoList &Inputs,
+	const llvm::opt::ArgList &TCArgs,
+	const char *LinkingOutput) const
+	override;
+};
+} // end namespace zipline
+} // end namespace tools
+
+namespace toolchains {
+struct LLVM_LIBRARY_VISIBILITY ZiplineToolChain … {
+…
+};
+} // end namespace toolchains
+} // end namespace driver
+} // end namespace clang
+\end{lstlisting}
+
+Be careful because the newly created Assembler resides in the clang::driver::tools::zipline namespace, while ZiplineToolChain, which we created in the previous section, is in clang::driver::toolchains.
+
+The Assembler::ConstructJob method is where we will put our logic for invoking Base64 encoding tools.
+
+\item Inside Zipline.cpp, we will implement the method body of Assembler::ConstructJob:
+
+\begin{lstlisting}[style=styleCXX]
+void
+tools::zipline::Assembler::ConstructJob(Compilation &C,
+							const JobAction &JA,
+							const InputInfo &Output,
+							const InputInfoList &Inputs,
+							const ArgList &Args,
+							const char *LinkingOutput)
+							const {
+	ArgStringList CmdArgs;
+	const InputInfo &II = Inputs[0];
+	
+	std::string Exec =
+	  Args.MakeArgString(getToolChain().
+	    GetProgramPath("openssl"));
+	
+	// opeenssl base64 arguments
+	CmdArgs.push_back("base64");
+	CmdArgs.push_back("-in");
+	CmdArgs.push_back(II.getFilename());
+	CmdArgs.push_back("-out");
+	CmdArgs.push_back(Output.getFilename());
+	
+	C.addCommand(
+	  std::make_unique<Command>(
+	  		 JA, *this, ResponseFileSupport::None(),
+	         Args.MakeArgString(Exec), CmdArgs,
+             Inputs, Output));
+}
+\end{lstlisting}
+
+We are using OpenSSL to do the Base64 encoding, and the command we hope to run is as follows:
+
+\begin{tcblisting}{commandshell={}}
+$ openssl base64 -in <input file> -out <output file>
+\end{tcblisting}
+
+The job of the ConstructJob method is building a program invocation to run the previous command. It is realized by the C.addCommand(…) function call at the very end of ConstructJob. The Command instance that's passed to the addCommand call represents the concrete command to be run during the assembling stage. It contains necessary information such as the path to the program executable (the Exec variable) and its arguments (the CmdArgs variable).
+
+For the Exec variable, the toolchain has provided a handy utility, the GetProgramPath function, to resolve the absolute path of an executable for you.
+
+The way we build arguments for openssl (the CmdArgs variable), on the other hand, is very similar to the thing we did in the Adding custom driver flags section: translating driver flags (the Args argument) and the input/output file information (the Output and Inputs argument) into a new set of command-line arguments and storing them in CmdArgs.
+
+\item Finally, we connect this Assembler class with ZiplineToolChain by implementing the ZiplineToolChain::buildAssembler method:
+
+\begin{lstlisting}[style=styleCXX]
+Tool *ZiplineToolChain::buildAssembler() const {
+	return new tools::zipline::Assembler(*this);
+}
+\end{lstlisting}
+
+\end{enumerate}
+
+These are all the steps we need to follow to create a Tool instance that represents the command to run during the linking stage of our Zipline toolchain.
+
+\subsubsubsection{8.4.4\hspace{0.2cm}Creating a custom linking stage}
+
+Now that we've finished the assembler stage, it's time to move on to the next stage – the linking stage. We are going to use the same approach we used in the previous section; that is, we will create a custom Tool class representing the linker. Here are the steps:
+
+\begin{enumerate}
+\item Inside Zipline.h, create a Linker class that is derived from Tool:
+
+\begin{lstlisting}[style=styleCXX]
+namespace zipline {
+struct LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
+	…
+};
+
+struct LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+	Linker(const ToolChain &TC)
+	  : Tool("zipeline::zipper", "zipper", TC) {}
+	  
+	bool hasIntegratedCPP() const override { return false;
+}
+
+	bool isLinkJob() const override { return true; }
+	
+	void ConstructJob(Compilation &C, const JobAction &JA,
+						const InputInfo &Output,
+						const InputInfoList &Inputs,
+						const llvm::opt::ArgList &TCArgs,
+						const char *LinkingOutput) const
+						override;
+private:
+	void buildZipArgs(const JobAction&, const InputInfo&,
+						const InputInfoList&,
+						const llvm::opt::ArgList&,
+						llvm::opt::ArgStringList&) const;
+						
+	void buildTarArgs(const JobAction&,
+						const InputInfo&,
+						const InputInfoList&,
+						const llvm::opt::ArgList&,
+						llvm::opt::ArgStringList&) const;
+};
+} // end namespace zipline
+\end{lstlisting}
+
+In this Linker class, we also need to implement the ConstructJob method to tell the driver what to execute during the linking stage. Differently from Assembler, since we need to support both the zip and tar + gzip packaging/compression schemes, we will add two extra methods, buildZipArgs and buildTarArgs, to handle argument building for each.
+
+\item Inside Zipline.cpp, we'll focus on the implementation of Linker::ConstructJob first:
+
+\begin{lstlisting}[style=styleCXX]
+void
+tools::zipline::Linker::ConstructJob(Compilation &C,
+const JobAction &JA,
+const InputInfo &Output,
+const InputInfoList &Inputs,
+const ArgList &Args,
+const char *LinkingOutput) const
+{
+	ArgStringList CmdArgs;
+	std::string Compressor = "zip";
+	if (Arg *A = Args.getLastArg(options::OPT_fuse_ld_EQ))
+	  Compressor = A->getValue();
+	std::string Exec = Args.MakeArgString(
+	     getToolChain().GetProgramPath(Compressor.c_str()));
+	
+	if (Compressor == "zip")
+  	  buildZipArgs(JA, Output, Inputs, Args, CmdArgs);
+	if (Compressor == "tar" || Compressor == "gzip")
+	  buildTarArgs(JA, Output, Inputs, Args, CmdArgs);
+	else
+	  llvm_unreachable("Unsupported compressor name");
+	
+	C.addCommand(
+	  std::make_unique<Command>(
+	    JA, *this, ResponseFileSupport::None(),
+	    Args.MakeArgString(Exec),
+	    CmdArgs, Inputs, Output));
+}
+\end{lstlisting}
+
+In this custom linking stage, we hope to use either the zip command or the tar command – depending on the -fuse-ld flag specified by users – to package all the (Base64-encoded) files generated by our custom Assembler.
+
+The detailed command format for both zip and tar will be explained shortly. From the preceding snippet, we can see that the thing we are doing here is similar to Assembler::ConstructJob. The Exec variable carries the absolute path to either the zip or tar program; the CmdArgs variable, which is populated by either buildZipArgs or buildTarArgs, which will be explained later, carries the command-line arguments for the tool (zip or tar).
+
+The biggest difference compared to Assembler::ConstructJob is that the command to execute can be designated by the -fuse-ld flag that's supplied by users. Thus, we are using the skill we learned about in the Adding custom driver flags section to read that driver flag and set up the command.
+
+\item If your users decide to package files in a ZIP file (which is the default scheme, or you can specify it explicitly via -fuse-ld=zip), we are going to run the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ zip <output zip file> <input file 1> <input file 2>…
+\end{tcblisting}
+
+Therefore, we will build our Linker::buildZipArgs method, which constructs an argument list for the preceding command, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+void
+tools::zipline::Linker::buildZipArgs(const JobAction &JA,
+										const InputInfo &Output,
+										const InputInfoList &Inputs,
+										const ArgList &Args,
+										ArgStringList &CmdArgs) const {
+	// output file
+	CmdArgs.push_back(Output.getFilename());
+	// input files
+	AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs,
+	JA);
+}
+\end{lstlisting}
+
+The CmdArgs argument of Linker::buildZipArgs will be where we'll export our results. While we are still using the same way to fetch the output filename (via Output.getFilename()), since a linker might accept multiple inputs at a time, we are leveraging another helper function, AddLinkerInputs, to add all the input filenames to CmdArgs for us.
+
+\item If your users decide to use the tar + gzip packaging scheme (via the -fuseld=tar or -fuse-ld=gzip flags), we are going to run the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ tar -czf <output tar.gz file> <input file 1> <input file 2>…
+\end{tcblisting}
+
+Therefore, we will build our Linker::buildTarArgs method, which constructs an argument list for the previous command, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+void
+tools::zipline::Linker::buildTarArgs(const JobAction &JA,
+										const InputInfo &Output,
+										const InputInfoList &Inputs,
+										const ArgList &Args,
+										ArgStringList &CmdArgs)
+										const {
+	// arguments and output file
+	CmdArgs.push_back("-czf");
+	CmdArgs.push_back(Output.getFilename());
+	// input files
+	AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs,
+	 JA);
+}
+\end{lstlisting}
+
+Just like buildZipArgs, we grab the output filename via Output. getFilename() and add all the input filenames, using AddLinkerInput, into CmdArgs.
+
+\item Last but not least, let's connect our Linker to ZiplineToolChain:
+
+\begin{lstlisting}[style=styleCXX]
+Tool *ZiplineToolChain::buildLinker() const {
+	return new tools::zipline::Linker(*this);
+}
+\end{lstlisting}
+
+\end{enumerate}
+
+That's all of the steps for implementing a custom linking phase for our Zipline toolchain.
+
+Now that we have created the necessary components for the Zipline toolchain, we can execute our custom features – encode the source files and package them into an archive – when users select this toolchain. In the next section, we are going to learn how to verify these functionalities.
+
+\subsubsubsection{8.4.5\hspace{0.2cm}Verifying the custom toolchain}
+
+To test the functionalities we implemented in this chapter, we can run the example commands depicted in the project overview or we can leverage the -\#\#\# driver flag again to dump all the expected compiler, assembler, and linker command details.
+
+So far, we've learned that the -\#\#\# flag will show all the frontend flags that have been translated by the driver. But actually, it will also show the assembler and linker commands that have been scheduled to run. For instance, let's invoke the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -### -zipline -c test.c
+\end{tcblisting}
+
+Since the -c flag always tries to run the assembler over the assembly file generated by Clang, our custom assembler (that is, the Base64 encoder) within Zipline will be triggered. Therefore, you will see an output similar to the following:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -### -zipline -c test.c
+"/path/to/clang" "-cc1" …
+"/usr/bin/openssl" "base64" "-in" "/tmp/test_ae4f5b.s" "-out"
+"test.o"
+$
+\end{tcblisting}
+
+The line starting with /path/to/clang -cc1 contains the frontend flags we learned about earlier. The line that follows is the assembler invocation command. This, in our case, runs openssl to perform Base64 encoding.
+
+Note that the weird /tmp/test\_ae4f5b.s filename is the temporary file that's created by the driver to accommodate the assembly code that's generated by the compiler.
+
+Using the same trick, we can verify our custom linker stage, as follows:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -### -zipline test.c -o test.zip
+"/path/to/clang" "-cc1" …
+"/usr/bin/openssl" "base64" "-in" "/tmp/test_ae4f5b.s" "-out"
+"/tmp/test_ae4f5b.o"
+"/usr/bin/zip" "test.zip" "/tmp/test_ae4f5b.o"
+$
+\end{tcblisting}
+
+Since the -o flag was used in the previous command, Clang will build a complete executable from test.c involving the assembler and the linker. Therefore, our custom linking stage is up here due to the zip command taking the result (the /tmp/test\_ae4f5b.o file) from the previous assembling stage. Feel free to add the -fuse-ld=tar flag to see the zip command replace the tar command with a completely different argument list.
+
+In this section, we showed you how to create a toolchain for Clang's driver. This is a crucial skill for supporting Clang on custom or new platforms. We also learned that the toolchain framework in Clang is flexible and can handle a variety of tasks that are required by the target platform.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

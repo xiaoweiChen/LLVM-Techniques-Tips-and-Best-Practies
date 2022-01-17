@@ -1,0 +1,133 @@
+
+The Clang project contains not just the clang executable. It also provides interfaces for developers to extend its tools, as well as to export its functionalities as libraries. In this section, we will give you an overview of all these options. Some of them will be covered in later chapters.
+
+There are currently three kinds of tooling and extension options available in Clang: Clang plugins, libTooling, and Clang Tools. To explain their differences and provide more background knowledge when we talk about Clang extensions, we need to start from an important data type first: the clang::FrontendAction class.
+
+\subsubsubsection{5.3.1\hspace{0.2cm}The FrontendAction class}
+
+In the Learning Clang's subsystems and their roles section, we went through a variety of Clang's frontend components, such as the preprocessor and Sema, to name a few. Many of these important components are encapsulated by a single data type, called FrontendAction. A FrontendAction instance can be treated as a single task running inside the frontend. It provides a unified interface for the task to consume and interact with various resources, such as input source files and ASTs, which is similar to the role of an LLVM Pass from this perspective (an LLVM Pass provides a unified interface to process LLVM IR). However, there are some significant differences with an LLVM Pass:
+
+\begin{itemize}
+\item Not all of the frontend components are encapsulated into a FrontendAction, such as the parser and Sema. They are standalone components that generate materials (for example, the AST) for other FrontendActions to run.
+
+\item Except for a few scenarios (the Clang plugin is one of them), a Clang compilation instance rarely runs multiple FrontendActions. Normally, only one FrontendAction will be executed.
+\end{itemize}
+
+Generally speaking, a FrontendAction describes the task to be done at one or two important places in the frontend. This explains why it's so important for tooling or extension development – we're basically building our logic into a FrontendAction (one of FrontendAction's derived classes, to be more precise) instance to control and customize the behavior of a normal Clang compilation.
+
+To give you a feel for the FrontendAction module, here are some of its important APIs:
+
+\begin{itemize}
+\item FrontendAction::BeginSourceFileAction(…)/EndSourceFileAction(…): These are callbacks that derived classes can override to perform actions right before processing a source file and once it has been processed, respectively
+
+\item Except for a few scenarios (the Clang plugin is one of them), a Clang compilation instance rarely runs multiple FrontendActions. Normally, only one FrontendAction will be executed.
+
+\item FrontendAction::CreateASTConsumer(…): This is a factory function that's used to create an ASTConsumer instance, which is a group of callbacks that will be invoked by the frontend when it's traversing different parts of the AST (for example, a callback to be called when the frontend encounters a group of declarations). Note that while the majority of FrontendActions work after the AST has been generated, the AST might not be generated at all. This may happen if the user only wants to run the preprocessor, for example (such as to dump the preprocessed content using Clang's -E command-line option). Thus, you don't always need to implement this function in your custom FrontendAction.
+\end{itemize}
+
+Again, normally, you won't derive your class directly from FrontendAction, but understanding FrontendAction's internal role in Clang and its interfaces can give you more material to work with when it comes to tooling or plugin development.
+
+\subsubsubsection{5.3.2\hspace{0.2cm}Clang plugins}
+
+A Clang plugin allows you to dynamically register a new FrontendAction (more specifically, an ASTFrontendAction) that can process the AST either before or after, or even replace, the main action of clang. A real-world example can be found in the Chromium project, in which they use Clang plugins to impose some Chromium-specific rules and make sure their code base is free from any non-ideal syntax. For example, one of the tasks is checking if the virtual keyword has been placed on methods that should be virtual.
+
+A plugin can be easily loaded into a normal clang by using simple command-line options:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -fplugin=/path/to/MyPlugin.so … foo.cpp
+\end{tcblisting}
+
+This is really useful if you want to customize the compilation but have no control over the clang executable (that is, you can't use a modified version of clang). In addition, using the Clang plugin allows you to integrate with the build system more tightly; for example, if you want to rerun your logic once the source files or even arbitrary build dependencies have been modified. Since the Clang plugin is still using clang as the driver and modern build systems are pretty good at resolving normal compilation command dependencies, this can be done by making a few compile flag tweaks.
+
+However, the biggest downside of using the Clang plugin is its API issue. In theory, you can load and run your plugin in any clang executable, but only if the C++ APIs (and the ABI) are used by your plugin and the clang executable matches it. Unfortunately, for now, Clang (and also the whole LLVM project) has no intention to make any of its C++ APIs stable. In other words, to take the safest path, you need to make sure both your plugin and clang are using the exact same (major) version of LLVM. This issue makes the Clang plugin pretty hard to be released standalone.
+
+We will look at this in more detail in Chapter 7, Handling AST.
+
+\subsubsubsection{5.3.3\hspace{0.2cm}LibTooling and Clang Tools}
+
+LibTooling is a library that provides features for building standalone tools on top of Clang's techniques. You can use it like a normal library in your project, without having any dependencies on the clang executable. Also, the APIs are designed to be more high-level so that you don't need to deal with many of Clang's internal details, making it more friendly to non-Clang developers.
+
+Language server is one of the most famous use cases of libTooling. A Language server is launched as a daemon process and accepts requests from editors or IDEs. These requests can be as simple as syntax checking a code snippet or complicated tasks such as code completions. While a Language server does not need to compile the incoming source code into native code as normal compilers do, it needs a way to parse and analyze that code, which is non-trivial to build from scratch. libTooling avoids the need to recreate the wheels in this case by taking Clang's techniques off-the-shelf and providing an easier interface for Language server developers.
+
+To give you a more concrete idea of how libTooling differs from the Clang plugin, here is a (simplified) code snippet for executing a custom ASTFrontendAction called MyCustomAction:
+
+\begin{lstlisting}[style=styleCXX]
+int main(int argc, char** argv) {
+	CommonOptionsParser OptionsParser(argc, argv,…);
+	ClangTool Tool(OptionsParser.getCompilations(), {"foo.cpp"});
+	return Tool.run(newFrontendActionFactory<MyCustomAction>().
+	get());
+}
+\end{lstlisting}
+
+As shown in the previous code, you can't just embed this code into any code base. libTooling also provides lots of nice utilities, such as CommonOptionsParser, which parses textual command-line options and transforms them into Clang options for you.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=libTooling's API Stability]
+\hspace*{0.7cm}Unfortunately, libTooling doesn't provide stable C++ APIs either. Nevertheless, this isn't a problem since you have full control over what LLVM version you're using.
+\end{tcolorbox}
+
+Last but not least, Clang Tools is a collection of utility programs build on top of libTooling. You can think of it as the command-line tool version of libTooling in that it provides some common functionalities. For example, you can use clang-refactor to refactor the code. This includes renaming a variable, as shown in the following code:
+
+\begin{lstlisting}[style=styleCXX]
+// In foo.cpp…
+struct Location {
+	float Lat, Lng;
+};
+float foo(Location *loc) {
+	auto Lat = loc->Lat + 1.0;
+	return Lat;
+}
+\end{lstlisting}
+
+If we want to rename the Lat member variable in the Location struct Latitude, we can use the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ clang-refactor --selection="foo.cpp:1:1-10:2" \
+    --old-qualified-name="Location::Lat" \
+    --new-qualified-name="Location::Latitude" \
+    foo.cpp
+\end{tcblisting}
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Building clang-refactor]
+\hspace*{0.7cm}Be sure to follow the instructions at the beginning of this chapter to include clang-tools-extra in the list for the LLVM\_ENABLE\_PROJECTS CMake variable. By doing this, you'll be able to build clang-refactor using the ninja clang-refactor command.
+\end{tcolorbox}
+
+You will get the following output:
+
+\begin{lstlisting}[style=styleCXX]
+// In foo.cpp…
+struct Location {
+	float Latitude, Lng;
+};
+float foo(Location *loc) {
+	auto Lat = loc->Latitude + 1.0;
+	return Lat;
+}
+\end{lstlisting}
+
+This is done by the refactoring framework built inside libTooling; clang-refactor merely provides a command-line interface for it.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

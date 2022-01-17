@@ -1,0 +1,28 @@
+In the previous chapter, we went through the structure of Clang—the official frontend of Low-Level Virtual Machine (LLVM) for C-family languages—and some of its most important components. We also introduced a variety of Clang's tooling and extension options. In this chapter, we're diving into the first phase in Clang's frontend pipeline: the preprocessor.
+
+For C-family programming languages, preprocessing is an early compilation phase that replaces any directive starting with a hash (\#) character—\#include and \#define, to name but a few—with some other textual contents (or non-textual tokens, in some rare cases). For example, the preprocessor will basically copy and paste contents of header files designated by the \#include directive into the current compilation unit before parsing it. This technique has the advantage of extracting common code and reusing it.
+
+In this chapter, we will briefly explain how Clang's preprocessor/Lexer framework works, along with some crucial application programming interfaces (APIs) that can help your development in this section. In addition, Clang also provides some ways for developers to inject their custom logic into the preprocessing flow via plugins. For example, it allows you to create custom \#pragma syntax—such as that used by OpenMP (\#pragma omp loop, for example) —in an easier way. Learning these techniques yields you more options when solving problems of different abstraction levels. Here is the list of sections in this chapter:
+
+\begin{itemize}
+\item Working with SourceLocation and SourceManager
+\item Learning preprocessor and lexer essentials
+\item Developing custom preprocessor plugins and callbacks
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

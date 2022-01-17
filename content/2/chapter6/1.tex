@@ -1,0 +1,45 @@
+This chapter expects you to have a build of the Clang executable. You can obtain this by
+running the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja clang
+\end{tcblisting}
+
+Here is a useful command to print textual content right after preprocessing:
+
+The -E command-line option for clang is pretty useful for printing textual content right after preprocessing. As an example, foo.c has the following content:
+
+\begin{lstlisting}[style=styleCXX]
+#define HELLO 4
+int foo(int x) {
+	return x + HELLO;
+}
+\end{lstlisting}
+
+Use the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -E foo.c
+\end{tcblisting}
+
+The preceding command will give you this output:
+
+\begin{lstlisting}[style=styleCXX]
+…
+int foo(int x) {
+	return x + 4;
+}
+\end{lstlisting}
+
+As you can see, HELLO was replaced by 4 in the code. You might be able to use this trick to debug when developing custom extensions in later sections.
+
+Code used in this chapter can be found at this link: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter06}.
+
+
+
+
+
+
+
+
+

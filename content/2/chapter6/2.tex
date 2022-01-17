@@ -1,0 +1,63 @@
+When working closely with source files, one of the most fundamental questions is how a compiler frontend would be able to locate a piece of string in the file. On one hand, printing format messages well (compilation error and warning messages, for example) is a crucial job, in which accurate line and column numbers must be displayed. On the other hand, the frontend might need to manage multiple files at a time and access their in-memory content in an efficient way. In Clang, these questions are primarily handled by two classes: SourceLocation and SourceManager. We're going to give you a brief introduction to them and show how to use them in practice in the rest of this section.
+
+\subsubsubsection{6.2.1\hspace{0.2cm}Introducing SourceLocation}
+
+The SourceLocation class is used for representing the location of a piece of code in its file. When it comes to its implementation, using line and column numbers is probably the most intuitive way to do this. However, things might get complicated in real-world scenarios, such that internally, we can't naively use a pair of numbers as the in-memory representations for source code locations. One of the main reasons is that SourceLocation instances are extensively used in Clang's code base and basically live through the entire frontend compilation pipeline. Therefore, it's important to use a concise way to store its information rather than two 32-bit integers (and this might not even be sufficient since we also want to know the origin file!), which can easily bloat Clang's runtime-memory footprint.
+
+Clang solves this problem by using the elegantly designed SourceLocation as the pointer (or a handle) to a large data buffer that stores all the real source code contents such that SourceLocation only uses a single unsigned integer under the hood, which also means its instances are trivially copyable—a property that can yield some performance benefits. Since SourceLocation is merely a pointer, it will only be meaningful and useful when put side by side with the data buffer we just mentioned, which is managed by the second main character in this story, SourceManager.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Other useful utilities]
+\hspace*{0.7cm}SourceRange is a pair of SourceLocation objects that represents the starting and ending of a source code range; FullSourceLocation encapsulates the normal SourceLocation class and its associated SourceManager class into one class so that you only need to carry a single FullSourceLocation instance instead of two objects (a SourceLocation object and a SourceManager object).
+\end{tcolorbox}
+
+\hspace*{\fill} \\ %插入空行
+\noindent
+\textbf{Trivially copyable}
+
+We were usually taught that unless there is a good reason, you should avoid passing an object by its value (as a function call argument, for example) in normal situations when writing C++. Since it involves lots of copying on the data members under the hood, you should pass by pointers or references instead. However, if carefully designed, a class type instance can be copied back and forth without lots of effort—for example, a class with no member variable or few member variables, plus a default copy constructor. If an instance is trivially copyable, you're encouraged to pass it by its value.
+
+\subsubsubsection{6.2.2\hspace{0.2cm}Introducing SourceManager}
+
+The SourceManager class manages all of the source files stored inside the memory and provides interfaces to access them. It also provides APIs to deal with source code locations, via SourceLocation instances we just introduced. For example, to get the line and column number from a SourceLocation instance, run the following code:
+
+\begin{lstlisting}[style=styleCXX]
+void foo(SourceManager &SM, SourceLocation SLoc) {
+	auto Line = SM.getSpellingLineNumber(SLoc),
+	Column = SM.getSpellingColumnNumber(SLoc);
+	…
+}
+\end{lstlisting}
+
+The Line and Column variables in the preceding code snippet are the line and column number of the source location pointed by SLoc, respectively.
+
+You might wonder why we are using the term spellingLineNumber instead of just LineNumber in the preceding code snippet. It turns out that in the cases of macro expansion (or any expansion happening during preprocessing), Clang keeps track of the macro content's SourceLocation instance before and after the expansion. A spelling location represents the location where the source code was originally written, whereas an expansion location is where the macro is expanded.
+
+You can also create a new spelling and expansion association using the following API:
+
+\begin{lstlisting}[style=styleCXX]
+SourceLocation NewSLoc = SM.createExpansionLoc(
+	SpellingLoc, // The original macro spelling location
+	ExpansionStart, // Start of the location where macro is
+	//expanded
+	ExpansionEnd, // End of the location where macro is
+	// expanded
+	Len // Length of the content you want to expand
+);
+\end{lstlisting}
+
+The returned NewSLoc is now associated with both the spelling and expanded locations that can be queried using SourceManager.
+
+These are the important concepts and APIs that will help you dealing with source code locations— especially when working with the preprocessor—in later chapters. The next section will give you some background on preprocessor and lexer development in Clang, which will be useful when working on the project in the later, Developing custom preprocessor plugins and callbacks section.
+
+
+
+
+
+
+
+
+
+
+
+
+

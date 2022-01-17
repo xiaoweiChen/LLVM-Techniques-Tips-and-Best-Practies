@@ -1,0 +1,8 @@
+\begin{enumerate}
+\item It is common to override the assembling and linking stage since different platforms tend to support different assemblers and linkers. However, is it possible to override the compiling stage (which is Clang)? If it is possible, how can we do this? Why may people wish to do this?
+
+\item When we were working on tools::zipline::Linker::ConstructJob, we simply use llvm\_unreachable to bail out the compilation process if a user provides an unsupported compressor name through the -fuse-ld flag. Can we replace it with Clang's diagnostic framework, which we learned about in Chapter 7, Handling AST, to print out better messages?
+
+\item Just like we can use -Xclang to pass flags directly to the frontend, we can also pass assembler-specific or linker-specific flags directly to the assembler or linker using driver flags such as -Wa (for the assembler) or -Wl (for the linker). How can we consume those flags in our custom assembler and linker stages within Zipline?
+
+\end{enumerate}

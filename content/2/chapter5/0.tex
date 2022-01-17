@@ -1,0 +1,18 @@
+Clang is LLVM's official frontend for C-family programming languages, including C, C++, and Objective-C. It processes the input source code (parsing, type checking, and semantic reasoning, to name a few) and generates equivalent LLVM IR code, which is then taken over by other LLVM subsystems to perform optimization and native code generation. Many C-like dialects or language extensions also find Clang easy to host their implementations. For example, Clang provides official support for OpenCL, OpenMP, and CUDA C/C++. In addition to normal frontend jobs, Clang has been evolving to partition its functionalities into libraries and modules so that developers can use them to create all kinds of tools related to source code processing; for example, code refactoring, code formatting, and syntax highlighting. Learning Clang development can not only bring you more engagement into the LLVM project but also open up a wide range of possibilities for creating powerful applications and tools.
+
+Unlike LLVM, which arranges most of its tasks into a single pipeline (that is, PassManager) and runs them sequentially, there is more diversity in how Clang organizes its subcomponents. In this chapter, we will show you a clear picture of how Clang's important subsystems are organized, what their roles are, and which part of the code base you should be looking for.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Terminology]
+\hspace*{0.7cm}From this chapter through to the rest of this book, we will be using Clang (which starts with an uppercase C and a Minion Pro font face) to refer to the project and its techniques as a whole. Whenever we use clang (all in lowercase with a Courier font face), we are referring to the executable program.
+\end{tcolorbox}
+
+In this chapter, we will cover the following main topics:
+
+\begin{itemize}
+\item 了解Clange的子系统及其作用
+\item 探索Clang工具的功能和扩展选项
+\end{itemize}
+
+By the end of this chapter, you will have a roadmap of this system so that you can kickstart your own projects and have some gravity for later chapters related to Clang development.
+
+

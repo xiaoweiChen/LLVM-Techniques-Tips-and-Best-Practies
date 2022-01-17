@@ -1,0 +1,33 @@
+
+Here are some simple questions and exercises that you might want to play around with by yourself:
+
+\begin{enumerate}
+\item Though most of the time Tokens are harvested from provided source code, in some cases, Tokens might be generated dynamically inside the Preprocessor. For example, the \_\_LINE\_\_ built-in macro is expanded to the current line number, and the \_\_DATE\_\_ macro is expanded to the current calendar date. How does Clang put that generated textual content into the source code buffer of SourceManager? How does Clang assign SourceLocation to these tokens?
+
+\item When we were talking about implementing a custom PragmaHandler, we were leveraging Preprocessor::Lex to fetch Tokens followed after the pragma name, until we hit the eod token kind. Can we keep lexing beyond the eod token? What interesting things will you do if you can consume arbitrary tokens after the \#pragma directive?
+
+\item  In the macro guard project from the Developing custom preprocessor plugins and callbacks section, the warning message has the format of [WARNING] In <source location>: ….. Apparently, this is not a typical compiler warning we see from clang, which looks like <source location>: warning: …, as shown in the following code snippet:
+
+\begin{tcblisting}{commandshell={}}
+./simple_warn.c:2:7: warning: unused variable 'y'…
+  int y = x + 1;
+       ^
+
+1 warning generated.
+\end{tcblisting}
+
+The warning string is even colored in supported terminals. How can we print a warning message such as that? Is there an infrastructure in Clang for doing that?
+
+\end{enumerate}
+
+
+
+
+
+
+
+
+
+
+
+
