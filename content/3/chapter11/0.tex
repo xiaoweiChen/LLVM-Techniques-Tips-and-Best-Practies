@@ -1,0 +1,29 @@
+In the previous chapter, we learned the basics of Low-Level Virtual Machine (LLVM) intermediate representation (IR)—the target-independent intermediate representations in LLVM—and how to inspect and manipulate this with C++ application programming interfaces (APIs). These are the core techniques for doing program analysis and transformation in LLVM. In addition to those skill sets, LLVM also provides many support utilities to improve compiler developers' productivity when working with LLVM IR. We are going to cover those topics in this chapter.
+
+A compiler is a complex piece of software. It not only needs to handle thousands of different cases— including input programs with different shapes and a wide variety of target architectures—but the correctness of a compiler is also an important topic: namely, the compiled code needs to have the same behavior as the original one. LLVM, a largescale compiler framework (and probably one of the biggest), is not an exception.
+
+To tackle these complexities, LLVM has provided a crate of gadgets to improve the development experience. In this chapter, we are going to show you how to gear up to use those tools. The utilities covered here can assist you in diagnosing problems that occur from the LLVM code you are developing. This includes more efficient debugging, error handling, and profiling abilities; for instance, one of the tools can collect statistical numbers on key components—such as the number of basic blocks being processed by a specific Pass—and automatically generate a summary report. Another example is LLVM's own error-handling framework, which prevents as many unhandled errors (a common programming mistake) as possible.
+
+Here is a list of the topics we are going to cover in this chapter:
+
+\begin{itemize}
+\item Printing diagnostic messages
+\item Collecting statistics
+\item Adding time measurements
+\item Error-handling utilities in LLVM
+\item Learning about the Expected and ErrorOr classes
+\end{itemize}
+
+With the help of these utilities, you will have a better time debugging and diagnosing the LLVM code, letting you focus on the core logic you want to implement with LLVM.
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,200 @@
+
+Error handling has always been a widely discussed topic in software development. It can be as simple as returning an error code—such as in many of the Linux APIs (for example, the open function)—or using an advanced mechanism such as throwing an exception, which has been widely adopted by many modern programming languages such as Java and C++.
+
+Although C++ has built-in support for exception handling, LLVM does not adopt it in its code base at all. The rationale behind this decision is that despite its convenience and expressive syntax, exception handling in C++ comes at a high cost in terms of performance. Simply speaking, exception handling makes the original code more complicated and hinders a compiler's ability to optimize it. Furthermore, during runtime, the program usually needs to spend more time recovering from an exception. Therefore, LLVM disables exception handling by default in its code base and falls back to other ways of error handling—for example, carrying an error with the return value or using the utilities we are going to learn about in this section. In the first half of this section, we are going to talk about the Error class, which—as the name suggests—represents an error. This is unlike conventional error representations—when using an integer as the error code, for instance, you cannot ignore the generated Error instances without handling it. We will explain this shortly.
+
+In addition to the Error class, developers found that in LLVM's code base a common pattern was shared by much of the error-handling code: an API may return a result or an error, but not both (at the same time). For instance, when we call a file-reading API, we are expecting to get the content of that file (the result) or an error when something goes wrong (for example, there is no such file). In the second part of this section, we are going to learn two utility classes that implement this pattern.
+
+Let's start with an introduction to the Error class first.
+
+\subsubsubsection{11.5.1\hspace{0.2cm}Introducing the Error class}
+
+The concept represented by the Error class is pretty simple: it's an error with supplementary descriptions such as an error message or error code. It is designed to be passed by a value (as a function argument) or returned from a function. Developers are free to create their custom Error instance, too. For example, if we want to create a FileNotFoundError instance to tell users that a certain file does not exist, we can write the following code:
+
+\begin{lstlisting}[style=styleCXX]
+#include "llvm/Support/Error.h"
+#include <system_error>
+// In the header file…
+struct FileNotFoundError : public ErrorInfo<FileNoteFoundError>
+{
+	StringRef FileName;
+	explicit FileNotFoundError(StringRef Name) : FileName(Name)
+	{}
+	static char ID;
+	std::error_code convertToErrorCode() const override {
+		return std::errc::no_such_file_or_directory;
+	}
+	void log(raw_ostream &OS) const override {
+		OS << FileName << ": No such file";
+	}
+};
+// In the CPP file…
+char FileNotFoundError::ID = 0;
+\end{lstlisting}
+
+There are several requirements for implementing a custom Error instance. These are listed next:
+
+\begin{itemize}
+\item Derive from the ErrorInfo<T> class, where T is your custom class.
+\item Declare a unique ID variable. In this case, we use a static class member variable.
+\item Implement the convertToErrorCode method. This method designates a std::error\_code instance for this Error instance. std::error\_code is the error type used in the C++ standard library (since C++11). Please refer to the C++ reference documentation for available (predefined) std::error\_code instances.
+\item Implement the log method to print out error messages.
+\end{itemize}
+
+To create an Error instance, we can leverage a make\_error utility function. Here is an example usage of this:
+
+\begin{lstlisting}[style=styleCXX]
+Error NoSuchFileErr = make_error<FileNotFoundError>("foo.txt");
+\end{lstlisting}
+
+The make\_error function takes an error class—in this case, our FileNotFoundError class—as the template argument and function arguments (in this case, foo.txt), if there are any. These will then be passed to its constructor.
+
+If you try to run the preceding code (in debug build) without doing anything to the NoSuchFileErr variable, the program will simply crash and show an error message such as this:
+
+\begin{tcblisting}{commandshell={}}
+Program aborted due to an unhandled Error:
+foo.txt: No such file
+\end{tcblisting}
+
+It turns out that every Error instance is required to be checked and handled before the end of its lifetime (that is, when its destructor method is called).
+
+Let me first explain what checking an Error instance means. In addition to representing a real error, the Error class can also represent a success state—that is, no error. To give you a more concrete idea of this, many of the LLVM APIs have the following error-handling structure:
+
+\begin{lstlisting}[style=styleCXX]
+Error readFile(StringRef FileName) {
+	if (openFile(FileName)) {
+		// Success
+		// Read the file content…
+		return ErrorSuccess();
+	} else
+	return make_error<FileNotFoundError>(FileName);
+}
+\end{lstlisting}
+
+Note that you always need to check an Error instance even if you are 100\% sure that it is in a Success state, otherwise the program will still abort.
+
+The preceding code snippet provides a good segue into the topic of handling Error instances. If an Error instance represents a real error, we need to use a special API to handle it: handleErrors. Here's how to use it:
+
+\begin{lstlisting}[style=styleCXX]
+Error E = readFile(…);
+if (E) {
+	// TODO: Handle the error
+} else {
+    // Success!
+}
+\end{lstlisting}
+
+The handleErrors function takes ownership of the Error instance (by std::move(E)) and uses the provided lambda function to handle the error. You might notice that handleErrors returns another Error instance, which represents the unhandled error. What does that mean?
+
+In the previous example of the readFile function, the returned Error instance can represent either a Success state or a FileNotFoundError state. We can slightly modify the function to return a FileEmptyError instance when the opened file is empty, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+Error E = readFile(…);
+if (E) {
+	Error UnhandledErr = handleErrors(
+	std::move(E),
+	[&](const FileNotFoundError &NotFound) {
+		NotFound.log(errs() << "Error occurred: ");
+		errs() << "\n";
+	});
+	…
+}
+\end{lstlisting}
+
+Now, the Error instance returned from readFile can either be a Success state, a FileNotFoundError instance, or a FileEmptyError instance. However, the handleErrors code we wrote previously only handled the case of FileNotFoundError.
+
+Therefore, we need to use the following code to handle the case of FileEmptyError:
+
+\begin{lstlisting}[style=styleCXX]
+Error readFile(StringRef FileName) {
+	if (openFile(FileName)) {
+		// Success
+		…
+		if (Buffer.empty())
+			return make_error<FileEmptyError>();
+		else
+			return ErrorSuccess();
+	} else
+		return make_error<FileNotFoundError>(FileName);
+}
+\end{lstlisting}
+
+Be aware that you always need to take ownership of an Error instance when using handleErrors.
+
+Alternatively, you can coalesce two handleErrors function calls into one by using multiple lambda function arguments for each of the error types, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+Error E = readFile(…);
+if (E) {
+	Error UnhandledErr = handleErrors(
+	std::move(E),
+	[&](const FileNotFoundError &NotFound) {…},
+	[&](const FileEmptyError &IsEmpty) {…});
+	…
+}
+\end{lstlisting}
+
+In other words, the handleErrors function is acting like a switch-case statement for an Error instance. It is effectively working like the following pseudocode:
+
+\begin{lstlisting}[style=styleCXX]
+Error E = readFile(…);
+if (E) {
+	switch (E) {
+		case FileNotFoundError: …
+		case FileEmptyError: …
+		default:
+			// generate the UnhandledError
+	}
+}
+\end{lstlisting}
+
+Now, you might be wondering: Since handleErrors will always return an Error representing the unhandled error, and I can't just ignore the returned instance, otherwise the program will abort, how should we end this "chain of error handling"? There are two ways to do that, so let's have a look at each, as follows:
+
+\begin{itemize}
+\item If you are 100\% sure that you have handled all possible error types—which means that the unhandled Error variable is in a Success state—you can call the cantFail function to make an assertion, as illustrated in the following code snippet:
+
+\begin{lstlisting}[style=styleCXX]
+if (E) {
+	Error UnhandledErr = handleErrors(
+		std::move(E),
+		[&](const FileNotFoundError &NotFound) {…},
+		[&](const FileEmptyError &IsEmpty) {…});
+	cantFail(UnhandledErr);
+}
+\end{lstlisting}
+
+If UnhandledErr still contains an error, the cantFail function will abort the program execution and print an error message.
+
+\item A more elegant solution would be to use the handleAllErrors function, as follows:
+
+\begin{lstlisting}[style=styleCXX]
+if (E) {
+	handleAllErrors(
+	std::move(E),
+	[&](const FileNotFoundError &NotFound) {…},
+	[&](const FileEmptyError &IsEmpty) {…});
+	…
+}
+\end{lstlisting}
+
+This function will not return anything. It assumes that the given lambda functions are sufficient to handle all possible error types. Of course, if there is a missing one, handleAllErrors will still abort the program execution, just like what we have seen previously.
+
+\end{itemize}
+
+You have now learned how to use the Error class and how to properly handle errors. Though the design of Error seems a little annoying at first glance (that is, we need to handle all possible error types or the execution will just abort halfway), these restrictions can decrease the number of mistakes made by programmers and create a more robust program.
+
+Next, we are going to introduce two other utility classes that can further improve the error-handling expressions in LLVM.
+
+
+
+
+
+
+
+
+
+
+
+
+
+

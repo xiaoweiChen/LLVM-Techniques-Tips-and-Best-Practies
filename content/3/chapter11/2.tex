@@ -1,0 +1,113 @@
+In software development, there are many ways to diagnose a bug—for instance, using a debugger, inserting a sanitizer into your program (to catch invalid memory access, for example), or simply using one of the simplest yet most effective ways: adding print statements. While the last option doesn't sound really smart, it is actually pretty useful in many cases where other options cannot unleash their full potential (for example, release mode binaries with poor debug information quality or multithread programs).
+
+LLVM provides a small utility that not only helps you to print out debug messages but also filters which messages to show. Let's say we have an LLVM Pass, SimpleMulOpt, which replaces multiplication by power-of-two constants with left-shifting operations (which is what we did in the last section of the previous chapter, Processing LLVM IR). Here is part of its run method:
+
+\begin{lstlisting}[style=styleCXX]
+PreservedAnalyses
+SimpleMulOpt::run(Function &F, FunctionAnalysisManager &FAM) {
+	for (auto &I : instructions(F)) {
+		if (auto *BinOp = dyn_cast<BinaryOperator>(&I) &&
+		BinOp->getOpcode() == Instruction::Mul) {
+			auto *LHS = BinOp->getOperand(0),
+			*RHS = BinOp->getOperand(1);
+			// `BinOp` is a multiplication, `LHS` and `RHS` are its
+			// operands, now trying to optimize this instruction…
+			…
+		}
+	}
+	…
+}
+\end{lstlisting}
+
+The preceding code iterates through all instructions in the given function before looking for instructions that represent arithmetic multiplication. If there are any, the Pass will then work with the LHS and RHS operands (which appear in the rest of the code—these are not shown here).
+
+Let's assume that we want to print out the operand variables during our development. The most naïve way will be by using our old friend errs(), which streams arbitrary messages to stderr, as shown in the following code snippet:
+
+\begin{lstlisting}[style=styleCXX]
+// (extracted from the previous snippet)
+…
+auto *LHS = BinOp->getOperand(0),
+     *RHS = BinOp->getOperand(1);
+errs() << "Found a multiplication with operands ";
+LHS->printAsOperand(errs());
+errs() << " and ";
+RHS->printAsOperand(errs());
+…
+\end{lstlisting}
+
+The printAsOperand used in the preceding code snippet prints the textual representation of a Value to the given stream (errs(), in this case).
+
+Everything looks normal, except the fact that these messages will be printed out anyway even in a production environment, which is not what we want. Either we need to remove these codes before we ship our products, adding some macro guard around these codes (for example, \#ifndef NDEBUG), or we can use the debug utility provided by LLVM. Here is an example of this:
+
+\begin{lstlisting}[style=styleCXX]
+#include "llvm/Support/Debug.h"
+#define DEBUG_TYPE "simple-mul-opt"
+…
+auto *LHS = BinOp->getOperand(0),
+     *RHS = BinOp->getOperand(1);
+LLVM_DEBUG(dbgs() << "Found a multiplication with operands ");
+LLVM_DEBUG(LHS->printAsOperand(dbgs()));
+LLVM_DEBUG(dbgs() << " and ");
+LLVM_DEBUG(RHS->printAsOperand(dbgs()));
+…
+\end{lstlisting}
+
+The preceding code is basically doing the following three things:
+
+\begin{itemize}
+\item Replacing any usage of errs() with dbgs(). These two streams are basically doing the same thing, but the latter one will add a nice banner (Debug Log Output) to the output message.
+
+\item Wrapping all lines related to debug printing with the LLVM\_DEBUG(…) macro function. The use of this macro ensures that the enclosing line is only compiled in development mode. It also encodes the debug message category, which we will introduce shortly.
+
+\item Before using any LLVM\_DEBUG(…) macro functions, please make sure you define DEBUG\_TYPE to the desired debug category string (simple-mul-opt, in this case).
+
+\end{itemize}
+
+In addition to the aforementioned code modification, we also need to use an additional command-line flag, -debug, with opt to print those debug messages. Here is an example of this:
+
+\begin{tcblisting}{commandshell={}}
+$ opt -O3 -debug -load-pass-plugin=… …
+\end{tcblisting}
+
+But then, you'll find the output to be pretty noisy. There are tons of debug messages from other LLVM Passes. In this case, we're only interested in the messages from our Pass.
+
+To filter out unrelated messages, we can use the -debug-only command-line flag. Here is an example of this:
+
+\begin{tcblisting}{commandshell={}}
+$ opt -O3 -debug-only=simple-mul-opt -load-pass-plugin=… …
+\end{tcblisting}
+
+The value after -debug-only is the DEBUG\_TYPE value we defined in the previous code snippet. In other words, we can use DEBUG\_TYPE defined by each Pass to filter the desired debug messages. We can also select multiple debug categories to print. For instance, check out the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ opt -O3 -debug-only=sroa,simple-mul-opt -load-pass-plugin=… …
+\end{tcblisting}
+
+This command not only prints debug messages from our SimpleMulOpt Pass, but also those coming from the SROA Pass—an LLVM Pass included in the O3 optimization pipeline.
+
+In addition to defining a single debug category (DEBUG\_TYPE) for an LLVM Pass, you are in fact free to use as many categories as you like inside a Pass. This is useful, for instance, when you want to use separate debug categories for different parts of a Pass. For example, we can use separate categories for each of the operands in our SimpleMulOpt Pass. Here is how we can do this:
+
+\begin{lstlisting}[style=styleCXX]
+…
+#define DEBUG_TYPE "simple-mul-opt"
+auto *LHS = BinOp->getOperand(0),
+     *RHS = BinOp->getOperand(1);
+LLVM_DEBUG(dbgs() << "Found a multiplication instruction");
+DEBUG_WITH_TYPE("simple-mul-opt-lhs",
+               LHS->printAsOperand(dbgs() << "LHS operand: "));
+DEBUG_WITH_TYPE("simple-mul-opt-rhs",
+               RHS->printAsOperand(dbgs() << "RHS operand: "));
+…
+\end{lstlisting}
+
+DEBUG\_WITH\_TYPE is a special version of LLVM\_DEBUG. It executes code at the second argument, with the first argument as the debug category, which can be different from the currently defined DEBUG\_TYPE value. In the preceding code snippet, in addition to printing Found a multiplication instruction using the original simplemul-opt category, we are using simple-mul-opt-lhs to print messages related to the left-hand-side (LHS) operand and use simple-mul-opt-rhs to print messages for the other operand. With this feature, we can have a finer granularity to select debug message categories via the opt command.
+
+You have now learned how to use the utility provided by LLVM to print out debug messages in the development environment only, and how to filter them if needed. In the next section, we are going to learn how to collect key statistics while running an LLVM Pass.
+
+
+
+
+
+
+
+

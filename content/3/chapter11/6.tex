@@ -1,0 +1,108 @@
+
+As we briefly mentioned in the introduction of this section, in LLVM's code base it's pretty common to see a coding pattern where an API wants to return a result or an error if something goes wrong. LLVM tries to make this pattern more accessible by creating utilities that multiplex results and errors in a single object—they are the Expected and ErrorOr classes. Let's begin with the first one.
+
+
+\subsubsubsection{11.6.1\hspace{0.2cm}The Expected class}
+
+The Expected class carries either a Success result or an error—for instance, the JSON library in LLVM uses it to represent the outcome of parsing an incoming string, as shown next:
+
+\begin{lstlisting}[style=styleCXX]
+#include "llvm/Support/JSON.h"
+using namespace llvm;
+…
+// `InputStr` has the type of `StringRef`
+Expected<json::Value> JsonOrErr = json::parse(InputStr);
+if (JsonOrErr) {
+	// Success!
+	json::Value &Json = *JsonOrErr;
+	…
+} else {
+	// Something goes wrong…
+	Error Err = JsonOrErr.takeError();
+	// Start to handle `Err`…
+}
+\end{lstlisting}
+
+The preceding JsonOrErr class has a type of Expected<json::Value>. This means that this Expected variable either carries a json::Value-type Success result or an error, represented by the Error class we just learned about in the previous section.
+
+Just as with the Error class, every Expected instance needs to be checked. If it represents an error, that Error instance needs to be handled as well. To check the status of an Expected instance, we can also cast it to a Boolean type. However, unlike with Error, if an Expected instance contains a Success result, it will be true after being casted into a Boolean.
+
+If the Expected instance represents a Success result, you can fetch the result using either the * operator (as shown in the preceding code snippet), the -> operator, or the get method. Otherwise, you can retrieve the error by calling the takeError method before handling the Error instance, using the skills we learned in the previous section.
+
+Optionally, if you are sure that an Expected instance is in an Error state, you can check the underlying error type by calling the errorIsA method without retrieving the underlying Error instance first. For example, the following code checks if an error is a FileNotFoundError instance, which we created in the previous section:
+
+\begin{lstlisting}[style=styleCXX]
+if (JsonOrErr) {
+	// Success!
+	…
+} else {
+	// Something goes wrong…
+	if (JsonOrErr.errorIsA<FileNotFoundError>()) {
+		…
+	}
+}
+\end{lstlisting}
+
+These are tips for consuming an Expected variable. To create an Expected instance, the most common way is to leverage the implicit type conversion to Expected. Here is an example of this:
+
+\begin{lstlisting}[style=styleCXX]
+Expected<std::string> readFile(StringRef FileName) {
+	if (openFile(FileName)) {
+		std::string Content;
+		// Reading the file…
+		return Content;
+	} else
+		return make_error<FileNotFoundError>(FileName);
+}
+\end{lstlisting}
+
+The preceding code shows that in cases where something goes wrong, we can simply return an Error instance, which will be implicitly converted into an Expected instance representing that error. Similarly, if everything goes pretty smoothly, the Success result—in this case, the std::string type variable, Content—will also be implicitly converted into an Expected instance with a Success state.
+
+You have now learned how to use the Expected class. The last part of this section will show you how to use one of its sibling classes: ErrorOr.
+
+\subsubsubsection{11.6.2\hspace{0.2cm}The ErrorOr class}
+
+The ErrorOr class uses a model that is nearly identical to the Expected class— it is either a Success result or an error. Unlike the Expected class, ErrorOr uses std::error\_code to represent the error. Here is an example of using the MemoryBuffer API to read a file—foo.txt— and storing its content into a MemoryBuffer object:
+
+\begin{lstlisting}[style=styleCXX]
+#include "llvm/Support/MemoryBuffer.h"
+…
+ErrorOr<std::unique_ptr<MemoryBuffer>> ErrOrBuffer
+= MemoryBuffer::getFile("foo.txt");
+if (ErrOrBuffer) {
+	// Success!
+	std::unique_ptr<MemoryBuffer> &MB = *ErrOrBuffer;
+} else {
+	// Something goes wrong…
+	std::error_code EC = ErrOrBuffer.getError();
+	…
+}
+\end{lstlisting}
+
+The previous code snippet shows a similar structure, with the sample code for Expected we saw previously: the std::unique\_ptr<MemoryBuffer> instance is the type of success result here. We can also retrieve it using the * operator after checking the state of ErrOrBuffer.
+
+The only difference here is that if ErrOrBuffer is in an Error state, the error is represented by a std::error\_code instance rather than Error. Developers are not obliged to handle a std::error\_code instance—in other words, they can just ignore that error, which might increase the chances of other developers making mistakes in the code. Nevertheless, using the ErrorOr class can give you better interoperability with C++ standard library APIs, as many of them use std::error\_code to represent errors. For details about how to use std::error\_code, please refer to the C++ reference documentation.
+
+Finally, to create an ErrorOr instance, we are using the same trick we used on the Expected class—leveraging implicit conversion, as shown in the following code snippet:
+
+\begin{lstlisting}[style=styleCXX]
+#include <system_error>
+ErrorOr<std::string> readFile(StringRef FileName) {
+	if (openFile(FileName)) {
+		std::string Content;
+		// Reading the file…
+		return Content;
+	} else
+		return std::errc::no_such_file_or_directory;
+}
+\end{lstlisting}
+
+The std::errc::no\_such\_file\_or\_directory object is one of the predefined std::error\_code objects from the system\_error header file.
+
+In this section, we learned how to use some error-handling utilities provided by LLVM—the important Error class that imposes strict rules on unhandled errors, and the Expected and ErrorOr classes that provide you with a handy way of multiplexing the program result and error state in a single object. These tools can help you to write expressive yet robust error-handling code when developing with LLVM.
+
+
+
+
+
+
