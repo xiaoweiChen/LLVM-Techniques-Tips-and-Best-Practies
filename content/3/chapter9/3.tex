@@ -1,0 +1,207 @@
+
+Modern compiler optimizations can be complex. They usually require lots of information from the target program in order to make correct decisions and optimal transformations. For example, in the Writing an LLVM Pass for the new PassManager section, LLVM used the noalias attribute to calculate memory aliasing information, which might eventually be used to remove redundant memory loads.
+
+Some of this information – called analysis, in LLVM – is expensive to evaluate. In addition, a single analysis might also depend on other analyses. Therefore, LLVM creates an AnalysisManager component to handle all tasks related to program analysis in LLVM. In this section, we are going to show you how to use AnalysisManager in your own Passes for the sake of writing more powerful and sophisticated program transformations or analyses. We will also use a sample project, HaltAnalyzer, to drive our tutorial here. The next section will provide you with an overview of HaltAnalyzer before moving on to the detailed development steps.
+
+\subsubsubsection{9.3.1\hspace{0.2cm}Overview of the project}
+
+HaltAnalyzer is set up in a scenario where target programs are using a special function, my\_halt, that terminates the program execution when it is called. The my\_halt function is similar to the std::terminate function, or the assert function when its sanity check fails. 
+
+The job of HaltAnalyzer is to analyze the program to find basic blocks that are guaranteed to be unreachable because of the my\_halt function. To be more specific, let's take the following C code as an example:
+
+\begin{lstlisting}[style=styleCXX]
+int foo(int x, int y) {
+	if (x < 43) {
+		my_halt();
+		if (y > 45)
+		return x + 1;
+		else {
+			bar();
+			return x;
+		}
+	} else {
+		return y;
+	}
+}
+\end{lstlisting}
+
+Because my\_halt was called at the beginning of the true block for the if (x < 43) statement, the code highlighted in the preceding snippet will never be executed (that is, my\_halt stopped all of the program executions before even getting to those lines).
+
+HaltAnalyzer should identify these basic blocks and print out warning messages to stderr. Just like the sample project from the previous section, HaltAnalyzer is also a function Pass wrapped inside a plugin. Therefore, if we use the preceding snippet as the input to our HaltAnalyzer Pass, it should print out the following messages:
+
+\begin{tcblisting}{commandshell={}}
+$ opt --enable-new-pm --load-pass-plugin ./HaltAnalyzer.so \
+      --disable-output ./test.ll
+[WARNING] Unreachable BB: label %if.else
+[WARNING] Unreachable BB: label %if.then2
+$
+\end{tcblisting}
+
+The \%if.else and \%if.then2 strings are just names for the basic blocks in the if (y > 45) statement (you might see different names on your side). Another thing worth noting is the --disable-output command-line flag. By default, the opt utility will print out the binary form of LLVM IR (that is, the LLVM bitcode) anyway unless users redirect the output to other places via the -o flag. Using the aforementioned flag is merely to tell opt not to do that since we are not interested in the final content of LLVM IR (because we are not going to modify it) this time.
+
+Although the algorithm of HaltAnalyzer seems pretty simple, writing it from scratch might be a pain. That's why we are leveraging one of the analyses provided by LLVM: the Dominator Tree (DT). The concept of Control Flow Graph (CFG) domination has been taught in most entry-level compiler classes, so we are not going to explain it in depth here. Simply speaking, if we say a basic block dominates another block, every execution flow that arrives at the latter is guaranteed to go through the former first. A DT is one of the most important and commonly used analyses in LLVM; most control flow-related transformations cannot live without it.
+
+Putting this idea into HaltAnalyzer, we are simply looking for all of the basic blocks that are dominated by the basic blocks that contain a function call to my\_halt (we are excluding the basic blocks that contain the my\_halt call sites from the warning messages). In the next section, we will show you detailed instructions on how to write HaltAnalyzer.
+
+
+\subsubsubsection{9.3.2\hspace{0.2cm}Writing the HaltAnalyzer Pass}
+
+In this project, we will only create a single source file, HaltAnalyzer.cpp. Most of the infrastructure, including CMakeListst.txt, can be reused from the StrictOpt project in the previous section:
+
+\begin{enumerate}
+\item Inside HaltAnalyzer.cpp, first, we create the following Pass skeleton:
+
+\begin{lstlisting}[style=styleCXX]
+class HaltAnalyzer : public PassInfoMixin<HaltAnalyzer> {
+	static constexpr const char* HaltFuncName = "my_halt";
+	// All the call sites to "my_halt"
+	SmallVector<Instruction*, 2> Calls;
+	void findHaltCalls(Function &F);
+public:
+	PreservedAnalyses run(Function &F,
+	FunctionAnalysisManager &FAM);
+};
+\end{lstlisting}
+
+In addition to the run method that we saw in the previous section, we are creating an additional method, findHaltCalls, which will collect all of the Instruction calls to my\_halt in the current function and store them inside the Calls vector.
+
+\item Let's implement findHaltCalls first:
+
+\begin{lstlisting}[style=styleCXX]
+void HaltAnalyzer::findHaltCalls(Function &F) {
+	Calls.clear();
+	for (auto &I : instructions(F)) {
+		if (auto *CI = dyn_cast<CallInst>(&I)) {
+			if (CI->getCalledFunction()->getName() ==
+			HaltFuncName)
+			Calls.push_back(&I);
+		}
+	}
+}
+\end{lstlisting}
+
+This method uses llvm::instructions to iterate through every Instruction call in the current function and check them one by one. If the Instruction call is a CallInst – representing a typical function call site – and the callee name is my\_halt, we will push it into the Calls vector for later use.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Function name mangling]	
+\hspace*{0.7cm}Be aware that when a line of C++ code is compiled into LLVM IR or native code, the name of any symbol – including the function name – will be different from what you saw in the original source code. For example, a simple function that has the name of foo and takes no argument might have \_Z3foov as its name in LLVM IR. We call such a transformation in C++ name mangling. Different platforms also adopt different name mangling schemes. For example, in Visual Studio, the same function name becomes ?foo@@YAHH@Z in LLVM IR.
+\end{tcolorbox}
+
+\item Now, let's go back to the HaltAnalyzer::run method. There are two things we are going to do. We will collect the call sites to my\_halt via findHaltCalls, which we just wrote, and then retrieve the DT analysis data:
+
+\begin{lstlisting}[style=styleCXX]
+#include "llvm/IR/Dominators.h"
+…
+PreservedAnalyses
+HaltAnalyzer::run(Function &F, FunctionAnalysisManager
+&FAM) {
+	findHaltCalls(F);
+	DominatorTree &DT = FAM.
+	getResult<DominatorTreeAnalysis>(F);
+	…
+}
+\end{lstlisting}
+
+The highlighted line in the preceding snippet is the main character of this section. It shows us how to leverage the provided FunctionAnalysisManager type argument to retrieve specific analysis data (in this case, DominatorTree) for a specific Function class.
+
+Although, so far, we have (kind of) used the words analysis and analysis data interchangeably, in a real LLVM implementation, they are actually two different entities. Take the DT that we are using here as an example:
+
+\begin{enumerate}[label=\alph*)]
+\item DominatorTreeAnalysis is a C++ class that evaluates dominating relationships from the given Function. In other words, it is the one that performs the analysis.
+
+\item DominatorTree is a C++ class that represents the result generated from
+DominatorTreeAnalysis. This is just static data that will be cached by AnalysisManager until it is invalidated. 
+
+\end{enumerate}
+
+Furthermore, LLVM asks every analysis to clarify its affiliated result type via the Result member type. For example, DominatorTreeAnalysis::Result is
+equal to DominatorTree. 
+
+To make this even more formal, to associate the analysis data of an analysis class, T, with a Function variable, F, we can use the following snippet:
+
+\begin{lstlisting}[style=styleCXX]
+// `FAM` is a FunctionAnalysisManager
+typename T::Result &Data = FAM.getResult<T>(F);
+\end{lstlisting}
+
+\item After we retrieve DominatorTree, it's time to find all of the basic blocks dominated by the Instruction call sites that we collected earlier:
+
+\begin{lstlisting}[style=styleCXX]
+PreservedAnalyses
+HaltAnalyzer::run(Function &F, FunctionAnalysisManager
+&FAM) {
+	…
+	SmallVector<BasicBlock*, 4> DomBBs;
+	for (auto *I : Calls) {
+		auto *BB = I->getParent();
+		DomBBs.clear();
+		DT.getDescendants(BB, DomBBs);
+		for (auto *DomBB : DomBBs) {
+			// excluding the block containing `my_halt` call site
+			if (DomBB != BB) {
+				DomBB->printAsOperand(
+				errs() << "[WARNING] Unreachable BB: ");
+				errs() << "\n";
+			}
+		}
+	}
+	return PreservedAnalyses::all();
+}
+\end{lstlisting}
+
+By using the DominatorTree::getDescendants method, we can retrieve all of the basic blocks dominated by a my\_halt call site. Note that the results from getDescendants will also contain the block you put into the query (in this case, the block containing the my\_halt call sites), so we need to exclude it before printing the basic block name using the BasicBlock::printAsOperand method.
+
+With the ending of the returning PreservedAnalyses::all(), which tells AnalysisManager that this Pass does not invalidate any analysis since we don't modify the IR at all, we will wrap up the HaltAnalyzer::run method here.
+
+\item Finally, we need to dynamically insert our HaltAnalyzer Pass into the Pass pipeline. We are using the same method that we did in the last section, by implementing the llvmGetPassPluginInfo function and using PassBuilder to put our Pass at one of the EPs in the pipeline:
+
+\begin{lstlisting}[style=styleCXX]
+extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_
+WEAK
+llvmGetPassPluginInfo() {
+	return {
+		LLVM_PLUGIN_API_VERSION, "HaltAnalyzer", "v0.1",
+		[](PassBuilder &PB) {
+			using OptimizationLevel
+			= typename PassBuilder::OptimizationLevel;
+			PB.registerOptimizerLastEPCallback(
+			[](ModulePassManager &MPM, OptimizationLevel OL)
+			{
+				MPM.addPass(createModuleToFunctionPassAdaptor
+				(HaltAnalyzer()));
+			});
+		}
+	};
+}
+\end{lstlisting}
+
+In comparison to StrictOpt in the previous section, we are using registerOptimizerLastEPCallback to insert HaltAnalyzer after all of the other optimization Passes. The rationale behind this is that some optimizations might move basic blocks around, so prompting warnings too early might not be very useful. Nevertheless, we are still leveraging ModuletoFunctionPassAdaptor to wrap around our Pass; this is because registerOptimizerLastEPCallback only provides ModulePassManager for us to add our Pass, which is a function Pass.
+
+\end{enumerate}
+
+These are all the necessary steps to implement our HaltAnalyzer. Now you have learned how to use LLVM's program analysis infrastructure to obtain more information about the target program in an LLVM Pass. These skills can provide you with more insight into IR when you are developing a Pass. In addition, this infrastructure allows you to reuse highquality, off-the-shelf program analysis algorithms from LLVM instead of recreating the wheels by yourself. To browse all of the available analyses provided by LLVM, the llvm/include/llvm/Analysis folder in the source tree is a good starting point. Most of the header files within this folder are standalone analysis data files that you can use.
+
+In the final section of this chapter, we will show you some diagnosis techniques that are useful for debugging an LLVM Pass.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

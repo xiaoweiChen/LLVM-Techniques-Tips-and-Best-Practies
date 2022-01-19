@@ -1,0 +1,198 @@
+
+PassManager and AnalysisManager in LLVM are complicated pieces of software. They manage interactions between hundreds of Passes and analyses, and it can be a challenge when we try to diagnose a problem caused by them. In addition, it's really common for a compiler engineer to fix crashes in the compiler or miscompilation bugs. In those scenarios, useful instrumentation tools that provide insights to Passes and the Pass pipeline can greatly improve the productivity of fixing those problems. Fortunately, LLVM has already provided many of those tools.
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Miscompilation]	
+\hspace*{0.7cm}Miscompilation bugs usually refer to logical issues in the compiled program, which were introduced by compilers. For example, an overly aggressive compiler optimization removes certain loops that shouldn't be removed, causing the compiled software to malfunction, or mistakenly reorder memory barriers and create race conditions in the generated code.
+\end{tcolorbox}
+
+We will introduce a single tool at a time in each of the following sections. Here is the list of them:
+
+\begin{itemize}
+\item Printing Pass pipeline details
+\item Printing changes to the IR after each Pass
+\item Bisecting the Pass pipeline
+\end{itemize}
+
+These tools can interact purely in the command-line interface of opt. In fact, you can also create your own instrumentation tools (without even changing the LLVM source tree!); we will leave this as an exercise for you.
+
+\subsubsubsection{9.4.1\hspace{0.2cm}Printing Pass pipeline details}
+
+There are many different optimization levels in LLVM, that is, the -O1, -O2, or -Oz flags we are familiar with when using clang (or opt). Each optimization level is running a different set of Passes and arranging them in different orders. In some cases, this might greatly affect the generated code, in terms of performance or correctness. Therefore, sometimes, it's crucial to know these configurations in order to gain a clear understanding of the problems we are going to deal with.
+
+To print out all the Passes and the order they are currently running in inside opt, we can use the -\,-debug-pass-manager flag. For instance, given the following C code, test.c, we will see the following:
+
+\begin{lstlisting}[style=styleCXX]
+int bar(int x) {
+	int y = x;
+	return y * 4;
+}
+int foo(int z) {
+	return z + z * 2;
+}
+\end{lstlisting}
+
+We first generate the IR for it using the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ clang -O0 -Xclang -disable-O0-optnone -emit-llvm -S test.c
+\end{tcblisting}
+
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=The -disable-O0-optnone flag]	
+\hspace*{0.7cm}By default, clang will attach a special attribute, optnone, to each function under the -O0 optimization level. This attribute will prevent any further optimization on the attached functions. Here, the -disableO0-optnone (frontend) flag is preventing clang from attaching to this attribute.
+\end{tcolorbox}
+
+Then, we use the following command to print out all of the Passes running under the optimization level of -O2:
+
+\begin{tcblisting}{commandshell={}}
+$ opt -O2 --disable-output --debug-pass-manager test.ll
+Starting llvm::Module pass manager run.
+…
+Running pass: Annotation2MetadataPass on ./test.ll
+Running pass: ForceFunctionAttrsPass on ./test.ll
+…
+Starting llvm::Function pass manager run.
+Running pass: SimplifyCFGPass on bar
+Running pass: SROA on bar
+Running analysis: DominatorTreeAnalysis on bar
+Running pass: EarlyCSEPass on bar
+…
+Finished llvm::Function pass manager run.
+…
+Starting llvm::Function pass manager run.
+Running pass: SimplifyCFGPass on foo
+…
+Finished llvm::Function pass manager run.
+Invalidating analysis: VerifierAnalysis on ./test.ll
+… $
+\end{tcblisting}
+
+The preceding command-line output tells us that opt first runs a set of module-level optimizations; the ordering of those Passes (for example, Annotation2MetadataPass and ForceFunctionAttrsPass) are also listed. After that, a sequence of functionlevel optimizations is performed on the bar function (for example, SROA) before running those optimizations on the foo function. Furthermore, it also shows the analyses used in the pipeline (for example, DominatorTreeAnalysis), as well as prompting us with a message regarding they became invalidated (by a certain Pass).
+
+To sum up, --debug-pass-manager is a useful tool to peek into the Passes and their ordering run by the Pass pipeline at a certain optimization level. Knowing this information can give you a big picture of how Passes and analyses interact with the input IR.
+
+\subsubsubsection{9.4.2\hspace{0.2cm}Printing changes to the IR after each Pass}
+
+To understand the effects of a particular transformation Pass on your target program, one of the most straightforward ways is to compare the IR before and after it is processed by that Pass. To be more specific, in most cases, we are interested in the changes made by a particular transformation Pass. For instance, if LLVM mistakenly removes a loop that it shouldn't do, we want to know what Pass did that, and when the removal happened in the Pass pipeline.
+
+By using the -\,-print-changed flag (and some other supported flags that we will introduce shortly) with opt, we can print out the IR after each Pass if it was ever modified by that Pass. Using the test.c (and its IR file, test.ll) example code from the previous paragraph, we can use the following command to print changes, if there are any, made by each Pass:
+
+\begin{tcblisting}{commandshell={}}
+$ opt -O2 --disable-output --print-changed ./test.ll
+*** IR Dump At Start: ***
+...
+define dso_local i32 @bar(i32 %x) #0 {
+	entry:
+	%x.addr = alloca i32, align 4
+	%y = alloca i32, align 4
+	…
+	%1 = load i32, i32* %y, align 4
+	%mul = mul nsw i32 %1, 4
+	ret i32 %mul
+}
+...
+*** IR Dump After VerifierPass (module) omitted because no
+change ***
+…
+...
+*** IR Dump After SROA *** (function: bar)
+; Function Attrs: noinline nounwind uwtable
+define dso_local i32 @bar(i32 %x) #0 {
+	entry:
+	%mul = mul nsw i32 %x, 4
+	ret i32 %mul
+}
+...
+$
+\end{tcblisting}
+
+Here, we have only shown a small amount of output. However, in the highlighted part of the snippet, we can see that this tool will first print out the original IR (IR Dump At Start), then show the IR after it is processed by each Pass. For example, the preceding snippet shows that the bar function has become much shorter after the SROA Pass. If a Pass didn't modify the IR at all, it will omit the IR dump to reduce the amount of noise.
+
+Sometimes, we are only interested in the changes that have happened on a particular set of functions, say, the foo function, in this case. Instead of printing the change log of the entire module, we can add the -\,-filter-print-funcs=<function names> flag to only print IR changes for a subset of functions. For example, to only print IR changes for the foo function, you can use the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ opt -O2 --disable-output \
+          --print-changed --filter-print-funcs=foo ./test.ll
+\end{tcblisting}
+
+Just like -\,-filter-print-funcs, sometimes, we only want to see changes made by a particular set of Passes, say, the SROA and InstCombine Passes. In that case, we can add the -\,-filter-passes=<Pass names> flag. For example, to view only the content that is relevant to SROA and InstCombine, we can use the following command:
+
+\begin{tcblisting}{commandshell={}}
+$ opt -O2 --disable-output \
+          --print-changed \
+          --filter-passes=SROA,InstCombinePass ./test.ll
+\end{tcblisting}
+
+Now you have learned how to print the IR differences among all the Passes in the pipeline, with additional filters that can further focus on a specific function or Pass. In other words, this tool can help you to easily observe the progression of changes throughout the Pass pipeline and quickly spot any traces that you might be interested in. In the next section, we will learn how to debug problems raised in the code optimization by bisecting the Pass pipeline.
+
+\subsubsubsection{9.4.3\hspace{0.2cm}Bisecting the Pass pipeline}
+
+n the previous section, we introduced the -\,-print-changed flag, which prints out the IR change log throughout the Pass pipeline. We also mentioned that it is useful to call out changes that we are interested in; for instance, an invalid code transformation that caused miscompilation bugs. Alternatively, we can also bisect the Pass pipeline to achieve a similar goal. To be more specific, the -\,-opt-bisect-limit=<N> flag in opt bisects the Pass pipeline by disabling all Passes except the first N ones. The following command shows an example of this:
+
+\begin{tcblisting}{commandshell={}}
+$ opt -O2 --opt-bisect-limit=5 -S -o – test.ll
+BISECT: running pass (1) Annotation2MetadataPass on module (./test.ll)
+BISECT: running pass (2) ForceFunctionAttrsPass on module (./test.ll)
+BISECT: running pass (3) InferFunctionAttrsPass on module (./test.ll)
+BISECT: running pass (4) SimplifyCFGPass on function (bar)
+BISECT: running pass (5) SROA on function (bar)
+BISECT: NOT running pass (6) EarlyCSEPass on function (bar)
+BISECT: NOT running pass (7) LowerExpectIntrinsicPass on function (bar)
+BISECT: NOT running pass (8) SimplifyCFGPass on function (foo)
+BISECT: NOT running pass (9) SROA on function (foo)
+BISECT: NOT running pass (10) EarlyCSEPass on function (foo)
+...
+define dso_local i32 @bar(i32 %x) #0 {
+	entry:
+	%mul = mul nsw i32 %x, 4
+	ret i32 %mul
+}
+define dso_local i32 @foo(i32 %y) #0 {
+entry:
+	%y.addr = alloca i32, align 4
+	store i32 %y, i32* %y.addr, align 4
+	%0 = load i32, i32* %y.addr, align 4
+	%1 = load i32, i32* %y.addr, align 4
+	%mul = mul nsw i32 %1, 2
+	%add = add nsw i32 %0, %mul
+	ret i32 %add
+} $
+\end{tcblisting}
+
+(Note that this is different from examples shown in the previous sections; the preceding command has printed both messages from -\,-opt-bisect-limit and the final textual IR.)
+
+Since we implemented the -\,-opt-bisect-limit=5 flag, the Pass pipeline only ran the first five Passes. As you can see from the diagnostic messages, SROA was applied on bar but not the foo function, leaving the final IR of foo less optimal.
+
+By changing the number that follows -\,-opt-bisect-limit, we can adjust the cut point until certain code changes appear or a certain bug is triggered (for example, a crash). This is particularly useful as an early filtering step to narrow down the original problem to a smaller range of Passes in the pipeline. Furthermore, since it uses a numeric value as the parameter, this feature fits perfectly to automating environments such as automatic crash reporting tools or performance regression tracking tools.
+
+In this section, we introduced several useful instrumentation tools in opt for debugging and diagnosing the Pass pipeline. These tools can greatly improve your productivity when it comes to fixing problems, such as compiler crashes, performance regressions (on the target program), and miscompilation bugs.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

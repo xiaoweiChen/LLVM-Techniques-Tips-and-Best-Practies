@@ -1,0 +1,26 @@
+In the previous section of this book, Frontend Development, we began with an introduction to the internals of Clang, which is LLVM's official frontend for the C family of programming languages. We went through various projects, involving skills and knowledge, that can help you to deal with problems that are tightly coupled with source code.
+
+In this part of the book, we will be working with LLVM IR – a target-independent intermediate representation (IR) for compiler optimization and code generation. Compared to Clang's Abstract Syntax Tree (AST), LLVM IR provides a different level of abstraction by encapsulating extra execution details to enable more powerful program analyses and transformations. In addition to the design of LLVM IR, there is a mature ecosystem around this IR format, which provides countless resources, such as libraries, tools, and algorithm implementations. We will cover a variety of topics in LLVM IR, including the most common LLVM Pass development, using and writing program analysis, and the best practices and tips for working with LLVM IR APIs. Additionally, we will review more advanced skills such as Program Guided Optimization (PGO) and sanitizer development.
+
+In this chapter, we are going to talk about writing a transformation Pass and program analysis for the new PassManager. LLVM Pass is one of the most fundamental, and crucial, concepts within the entire project. It allows developers to encapsulate program processing logic into a modular unit that can be freely composed with other Passes by the PassManager, depending on the situation. In terms of the design of the Pass infrastructure, LLVM has actually gone through an overhaul of both PassManager and AnalysisManager to improve their runtime performance and optimization quality. The new PassManager uses a quite different interface for its enclosing Passes. This new interface, however, is not backward-compatible to the legacy one, meaning you cannot run legacy Passes in the new PassManager and vice versa. What is worse, there aren't many learning resources online that talk about this new interface, even though, now, they are enabled, by default, in both LLVM and Clang. The content of this chapter will fill this gap and provide you with an up-to-date guide to this crucial subsystem in LLVM.
+
+In this chapter, we will cover the following topics:
+
+\begin{itemize}
+\item Writing an LLVM Pass for the new PassManager
+\item Working with the new AnalysisManager
+\item Learning instrumentations in the new PassManager
+\end{itemize}
+
+With the knowledge learned from this chapter, you should be able to write an LLVM Pass, using the new Pass infrastructure, to transform or even optimize your input code. You can also further improve the quality of your Pass by leveraging the analysis data provided by LLVM's program analysis framework.
+
+
+
+
+
+
+
+
+
+
+
