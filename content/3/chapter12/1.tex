@@ -1,0 +1,39 @@
+In this chapter, we are going to work with multiple subprojects. One of them – Compiler-RT – needs to be included in your build by us modifying the CMake configuration. Please open the CMakeCache.txt file in your build folder and add the compiler-rt string to the value of the LLVM\_ENABLE\_PROJECTS variable. Here is an example:
+
+\begin{lstlisting}[style=styleCMake]
+//Semicolon-separated list of projects to build…
+LLVM_ENABLE_PROJECTS:STRING="clang;compiler-rt"
+\end{lstlisting}
+
+After editing the file, launch a build with any build target. CMake will try to reconfigure itself.
+
+Once everything has been set up, we can build the components we need for this chapter.Here is an example command:
+
+\begin{tcblisting}{commandshell={}}
+$ ninja clang compiler-rt opt llvm-profdata
+\end{tcblisting}
+
+This will build the clang tool we're all familiar with and a collection of Compiler-RT libraries, which we are going to introduce shortly.
+
+You can find the sample code for this chapter in the same GitHub repository: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clang-and-Middle-End-Libraries/tree/main/Chapter12}.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

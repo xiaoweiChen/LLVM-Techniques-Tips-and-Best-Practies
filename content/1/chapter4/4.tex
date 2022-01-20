@@ -176,7 +176,7 @@ if (SIRecord->isSubClassOf("Step")) {
 \noindent
 \textbf{处理DAG中的值}
 
-Now, we are going to print out the Step records. Recall that we used the dag type to represent the action and the ingredients required for a baking step. Have a look at the following code example:
+现在，开始打印\texttt{Step}记录。这里，使用\texttt{dag}类型来表示烘焙步骤所需的动作和配料:
 
 \begin{lstlisting}[style=styleCXX]
 def step_prep : Step<(heat:$action fry_oil:$oil, oil_
@@ -185,13 +185,13 @@ temp:$temp)> {
 }
 \end{lstlisting}
 
-Here, the highlighted dag is stored in the Action field of the Step TableGen class. So, we use getValueAsDag to retrieve that field as a DagInit object, as follows:
+这里，\texttt{dag}存储在TableGen类\texttt{Step}的Action字段中。因此，可以使用\texttt{getValueAsDag}检索该字段是否为\texttt{DagInit}对象:
 
 \begin{lstlisting}[style=styleCXX]
 DagInit* DAG = StepRecord->getValueAsDag("Action");
 \end{lstlisting}
 
-DagInit is just another class derived from Init, which wasintroduced earlier. It contains some DAG-specific APIs. For example, we can iterate through all of its operands and get their associated Init object using the getArg function, as follows:
+\texttt{DagInit}是从\texttt{Init}派生的另一个类，包含一些特定于DAG的API。例如，可以遍历它的所有操作数，使用\texttt{getArg}函数获得相关联的\texttt{Init}对象，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 for(i = 0; i < DAG->arg_size; ++i) {
@@ -199,7 +199,7 @@ for(i = 0; i < DAG->arg_size; ++i) {
 }
 \end{lstlisting}
 
-Furthermore, we can use the getArgNameStr function to retrieve the token (if there is any), which is always represented in string type in the TableGen backend, associated with a specific operand, as illustrated in the following code snippet:
+此外，可以使用\texttt{getArgNameStr}函数来检索令牌(如果有的话)，是在TableGen后端以字符串类型表示，与特定的操作数相关联:
 
 \begin{lstlisting}[style=styleCXX]
 for(i = 0; i < DAG->arg_size; ++i) {
@@ -207,30 +207,30 @@ for(i = 0; i < DAG->arg_size; ++i) {
 }
 \end{lstlisting}
 
-If ArgTok is empty, this means there is no token associated with that operand. To get the token associated with the operator, we can use the getNameStr API.
+如果\texttt{ArgTok}为空，意味着没有与该操作数相关联的令牌。要获得与操作符相关联的令牌，可以使用\texttt{getNameStr}API。
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Note]
-\hspace*{0.7cm}Both DagInit::getArgNameStr and DagInit::getNameStr return the token string without the leading dollar sign.
+\hspace*{0.7cm}\texttt{DagInit::getArgNameStr}和\texttt{DagInit::getNameStr}都返回不带美元符号的令牌字符串。
 \end{tcolorbox}
 
-This section has shown you some of the most important aspects of working with TableGen directives' in-memory C++ representation, which is the building block of writing a TableGen backend. In the next section, we will show you the final step to put everything together and run our custom TableGen backend.
+本节展示了使用TableGen指令的表示\texttt{C++}的一些最重要技巧，这些在于编写TableGen后端的构建块。下一节中，将展示将所有内容放在一起，并运行自定义TableGen后端的最后一步。
 
 \subsubsubsection{4.4.3\hspace{0.2cm}集成RecipePrinter TableGen后端}
 
-After finishing the utils/TableGen/RecipePrinter.cpp file, it's time to put everything together.
+完成utils/TableGen/RecipePrinter.cpp文件之后，是时候将所有内容放在一起了。
 
-As mentioned before, a TableGen backend is always associated with the llvm-tblgen tool, which is also the only interface to use the backend. llvm-tblgen uses simple command-line options to choose a backend to use.
+如前所述，TableGen后端总是与\texttt{llvm-tblgen}工具相关联，这也是使用后端的唯一接口。\texttt{llvm-tblgen}使用简单的命令行选项来选择要使用的后端。
 
-Here is an example of choosing one of the backends, IntrInfoEmitter, to generate a C/C++ header file from a TableGen file  that carries instruction set information of X86:
+下面的例子选择了一个后端：\texttt{IntrInfoEmitter}，从一个带有X86指令集信息的TableGen文件中生成一个\texttt{C/C++}头文件:
 
 \begin{tcblisting}{commandshell={}}
 $ llvm-tblgen -gen-instr-info /path/to/X86.td -o GenX86InstrInfo.inc
 \end{tcblisting}
 
-Let's now see how to integrate RecipePrinter source file to TableGen backend:
+现在来了解一下如何将\texttt{RecipePrinte}r源文件集成到TableGen后端:
 
 \begin{itemize}
-\item To link the RecipePrinter source file into llvm-tblgen and add a command-line option to select it, we're going to use utils/TableGen/TableGenBackends.h first. This file only contains a list of TableGen backend entry functions, which are functions that take a raw\_ostream output stream and the RecordKeeper object as arguments. We're also putting our EmitRecipe function into the list, as follows:
+\item 为了将\texttt{RecipePrinter}源文件链接到\texttt{llvm-tblgen}，并添加命令行选项来选择它，首先使用utils/TableGen/TableGenBackends.h。这个文件只包含TableGen后端入口函数列表，这些函数以\texttt{raw\_ostream}输出流和\texttt{RecordKeeper}对象作为参数。这里，也把我们的\texttt{EmitRecipe}函数放入列表中，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 …
@@ -241,7 +241,7 @@ void EmitRegisterBank(RecordKeeper &RK, raw_ostream &OS);
 …
 \end{lstlisting}
 
-\item Next, inside llvm/utils/TableGen/TableGen.cpp, we're first adding a new ActionType enum element and the selected command-line option, as follows:
+\item 接下来，在llvm/utils/TableGen/TableGen.cpp中，首先添加一个新的\texttt{ActionType}枚举元素和所选的命令行选项:
 
 \begin{lstlisting}[style=styleCXX]
 enum Action Type {
@@ -260,7 +260,7 @@ cl::opt<ActionType> Action(
 	));
 \end{lstlisting}
 
-\item After that, go to the LLVMTableGenMain function and insert the function call to EmitRecipe, as follows:
+\item 然后进入\texttt{LLVMTableGenMain}函数，将函数调用插入到\texttt{EmitRecipe}中，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 bool LLVMTableGenMain(raw_ostream &OS, RecordKeeper
@@ -274,7 +274,7 @@ bool LLVMTableGenMain(raw_ostream &OS, RecordKeeper
 }
 \end{lstlisting}
 
-\item Finally, don't forget to update utils/TableGen/CMakeLists.txt, as follows:
+\item 最后，不要忘记更新utils/TableGen/CMakeLists.txt，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 add_tablegen(llvm-tblgen LLVM
@@ -283,15 +283,15 @@ add_tablegen(llvm-tblgen LLVM
 	…)
 \end{lstlisting}
 
-\item That's all there is to it! You can now run the following command:
+\item 所有要做的事情已经完成了!现在可以执行以下命令:
 
 \begin{tcblisting}{commandshell={}}
 $ llvm-tblgen -gen-recipe DonutRecipe.td
 \end{tcblisting}
 
-(You can optionally redirect the output to a file using the -o option.)
+(可以使用-o选项将输出重定向到文件。)
 
-The preceding command will print out a (mostly) normal donut recipe, just like this:
+上面的命令会打印出甜甜圈的配方，就像这样:
 
 \begin{tcblisting}{commandshell={}}
 =======Ingredients=======
@@ -321,7 +321,7 @@ outcome from (step 6).
 
 \end{itemize}
 
-In this section, we have learned how to build a custom TableGen backend to transform a recipe written in TableGen into normal plaintext format. Things we learned here include how llvm-tblgen, the driver of translating TableGen code, works; how to use the TableGen backend's C++ APIs to operate TableGen directive's in-memory representation; and how to integrate our custom backend into llvm-tblgen in order to run it. Combining the skills you learned in this chapter and in the previous one, you can create a complete and standalone toolchain that implements your custom logic, using TableGen as a solution.
+本节中，学习了如何构建自定义TableGen后端，将用TableGen编写的菜谱转换成普通的文本格式。这里学到的内容包括，翻译TableGen代码的驱动程序\texttt{llvm-tblgen}是如何工作的，如何使用TableGen后端\texttt{C++}API来操作TableGen指令的内存表示，以及如何将自定义后端集成到\texttt{llvm-tblgen}并运行。结合本章和前一章中所学到的技能，现在可以使用TableGen作为解决方案，来创建完整且独立的工具链，从而实现相应的自定义逻辑。
 
 
 

@@ -1,0 +1,21 @@
+In the previous chapter, we learned how to leverage various utilities to improve our productivity while developing with LLVM. Those skills can give us a smoother experience when diagnosing problems that are raised by LLVM. Some of these utilities can even reduce the number of potential mistakes that are made by compiler engineers. In this chapter, we are going to learn how instrumentation works in LLVM IR.
+
+The instrumentation we are referring to here is a kind of technique that inserts some probes into the code we are compiling in order to collect runtime information. For example, we can collect information about how many times a certain function was called – which is only available once the target program has been executed. The advantage of this technique is that it provides extremely accurate information about the target program's behavior. This information can be used in several different ways. For instance, we can use the collected values to compile and optimize the same code again – but this time, since we have accurate data, we can perform more aggressive optimizations that couldn't be done previously. This technique is also called Profile-Guided Optimization (PGO). In another example, will be using the inserted probes to catch undesirable incidents that happened at runtime – buffer overflows, race conditions, and double-free memory, to name a few. The probe that's used for this purpose is also called a sanitizer.
+
+To implement instrumentation in LLVM, we not only need the help of LLVM pass, but also the synergy between multiple subprojects in LLVM – Clang, LLVM IR Transformation, and Compiler-RT. We already know about the first two from earlier chapters. In this chapter, we are going to introduce Compiler-RT and, more importantly, how can we combine these subsystems for the purpose of instrumentation.
+
+Here is the list of topics we are going to cover:
+
+\begin{itemize}
+\item Developing a sanitizer
+\item Working with PGO
+\end{itemize}
+
+
+In the first part of this chapter, we are going to see how a sanitizer is implemented in Clang and LLVM, before creating a simple one by ourselves. The second half of this chapter is going to show you how to use the PGO framework in LLVM and how we can extend it.
+
+
+
+
+
+
