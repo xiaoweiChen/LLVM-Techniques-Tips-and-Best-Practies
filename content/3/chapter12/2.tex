@@ -581,15 +581,135 @@ Here are the descriptions for each of the numbers (enclosed in circles) in the p
 
 Although this workflow looks a little scary, don't be overwhelmed by the prospective workload – Clang can actually do most of these tasks for you, as long as you provide sufficient information. In the rest of this section, we'll show you how to implement the tasks shown in the preceding diagram to fully integrate our LPCSan into the Clang compilation pipeline (the following tutorial works inside the llvm-project/clang folder). Let's get started:
 
+\begin{enumerate}
+\item First, we must modify include/clang/Basic/Sanitizers.def to add our sanitizer:
+
+\begin{lstlisting}[style=styleCXX]
+…
+// Shadow Call Stack
+SANITIZER("shadow-call-stack", ShadowCallStack)
+
+// Loop Counter Sanitizer
+SANITIZER("loop-counter", LoopCounter)
+…
+\end{lstlisting}
+
+This effectively adds a new enum value, LoopCounter, to the SanitizerKind class.
+
+It turns out that the driver will parse the -fsanitize command-line option and automatically translate loop-counter into SanitizerKind::LoopCounter based on the information we provided in Sanitizers.def.
+
+\item Next, let's work on the driver part. Open include/clang/Driver/SanitizerArgs.h and add a new utility method, needsLpcsanRt, to the SanitizerArgs class. Here is the code:
+
+\begin{lstlisting}[style=styleCXX]
+bool needsLsanRt() const {…}
+bool needsLpcsanRt() const {
+	return Sanitizers.has(SanitizerKind::LoopCounter);
+}
+\end{lstlisting}
+
+The utility method we created here can be used by other places in the driver to check if our sanitizer needs a Compiler-RT component.
+
+\item Now, let's navigate to the lib/Driver/ToolChains/CommonArgs.cpp file. Here, we're adding a few lines to the collectSanitizerRuntimes function. Here is the code:
+
+\begin{lstlisting}[style=styleCXX]
+…
+if (SanArgs.needsLsanRt() && SanArgs.linkRuntimes())
+	StaticRuntimes.push_back("lsan");
+if (SanArgs.needsLpcsanRt() && SanArgs.linkRuntimes())
+	StaticRuntimes.push_back("lpcsan");
+…
+\end{lstlisting}
+
+The preceding snippet effectively makes the linker link the correct Compiler-RT library to the target binary.
+
+\item The last change we will make to the driver is in lib/Driver/ToolChains/Linux.cpp. Here, we add the following lines to the Linux::getSupportedSanitizers method:
+
+\begin{lstlisting}[style=styleCXX]
+SanitizerMask Res = ToolChain::getSupportedSanitizers();
+…
+Res |= SanitizerKind::LoopCounter;
+…
+\end{lstlisting}
+
+The previous code is essentially telling the driver that we support the LPCSan in the current toolchain – the toolchain for Linux. Note that to simplify our example, we are only supporting the LPCSan in Linux. If you want to support this custom sanitizer in other platforms and architectures, modify the other toolchain implementations. Please refer to Chapter 8, Working with Compiler Flags and Toolchains, for more details if needed.
 
 
+\item Finally, we are going to insert our LoopCounterSanitizer pass into the LLVM
+pass pipeline. Open lib/CodeGen/BackendUtil.cpp and add the following
+lines to the addSanitizers function:
+
+\begin{lstlisting}[style=styleCXX]
+…
+// `PB` has the type of `PassBuilder`
+PB.registerOptimizerLastEPCallback(
+[&](ModulePassManager &MPM,
+PassBuilder::OptimizationLevel Level) {
+	…
+	if (LangOpts.Sanitize.has(SanitizerKind::LoopCounter))
+	{
+		auto FA
+		=
+		createFunctionToLoopPassAdaptor(LoopCounterSanitizer());
+		MPM.addPass(
+		createModuleToFunctionPassAdaptor(std::move(FA)));
+	}
+});
+…
+\end{lstlisting}
+
+The enclosing folder for this file, CodeGen, is a place where the Clang and LLVM libraries meet. Therefore, we will see several LLVM APIs appear in this place. There are primarily two tasks for this CodeGen component:
+
+\begin{enumerate}[label=\alph*.]
+\item Converting the Clang AST into its equivalent LLVM IR module
+\item Constructing an LLVM pass pipeline to optimize the IR and generate machine code
+\end{enumerate}
+
+The previous snippet was trying to customize the second task – that is, customizing the LLVM Pass pipeline. The specific function – addSanitizers – we are modifying here is responsible for putting sanitizer passes into the pass pipeline. To have a better understanding of this code, let's focus on two of its components:
+
+\begin{enumerate}[label=\roman*.]
+\item PassBuilder: This class provides predefined pass pipeline configurations for each optimization level – that is, the O0 ~ O3 notations (as well as Os and Oz for size optimization) we are familiar with. In addition to these predefined layouts, developers are free to customize the pipeline by leveraging the extension point (EP).
+
+An EP is a certain position in the (predefined) pass pipeline where you can insert new passes. Currently, PassBuilder supports several EPs, such as at the beginning of the pipeline, at the end of the pipeline, or at the end of the vectorization process, to name a few. An example of using EP can be found in the preceding code, where we used the PassBuilder::registerOptimizerLastEPCallback method and a lambda function to customize the EP located at the end of the Pass pipeline. The lambda function has two arguments: ModulePassManager – which represents the pass pipeline – and the current optimization level. Developers can use ModulePassManager::addPass to insert arbitrary LLVM passes into this EP.
+
+\item ModulePassManager: This class represents a Pass pipeline – or, more
+specifically, the pipeline for Module. There are, of course, other PassManager
+classes for different IR units, such as FunctionPassManager for Function.
+
+In the preceding code, we were trying to use the ModulePassManager instance to insert our LoopCounterSanitizer pass whenever SanitizerKind::LoopCounter was one of the sanitizers that had been designated by the user. Since LoopCounterSanitizer is a loop pass rather than a module pass, we need to add some adaptors between the pass and PassManager. The createFunctionToLoopPassAdaptor and createModuleToFunctionPassAdaptor functions we were using here created a special instance that adapts a pass to a PassManager of a different IR unit.
+
+This is all the program logic that supports our LPCSan in the Clang compilation
+pipeline.
+\end{enumerate}
+
+\item Last but not least, we must make a small modification to the build system. Open the runtime/CMakeLists.txt file and change the following CMake variable:
+
+\begin{lstlisting}[style=styleCMake]
+…
+set(COMPILER_RT_RUNTIMES fuzzer asan builtins … lpcsan)
+foreach(runtime ${COMPILER_RT_RUNTIMES})
+…
+\end{lstlisting}
+The change we made to COMPILER\_RT\_RUNTIMES effectively imports our LPCSan Compiler-RT libraries into the build.
 
 
+\end{enumerate}
 
+These are all the steps necessary to support the LPCSan in Clang. Now, we can finally use the LPCSan in the same way we showed you at the beginning of this section:
 
+\begin{tcblisting}{commandshell={}}
+$ clang -O1 -fsanitize=loop-counter input.c -o input
+\end{tcblisting}
 
+In this section, we learned how to create a sanitizer. A sanitizer is a useful tool for
+capturing runtime behaviors without modifying the original program code. The ability
+to create a sanitizer increases the flexibility for compiler developers to create custom
+diagnosing tools tailored for their own use cases. Developing a sanitizer requires
+comprehensive knowledge of Clang, LLVM, and Compiler-RT: creating a new LLVM
+pass, making a new Compiler-RT component, and customizing the compilation pipeline
+in Clang. You can use the content in this section, to reinforce what you've learned in
+previous chapters of this book.
 
-
+In the last section of this chapter, we are going to look at one more instrumentation technique: PGO.
 
 
 

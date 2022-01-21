@@ -1,0 +1,135 @@
+
+
+This section contains answers to the questions from all chapters.
+
+\hspace*{\fill} \\ %插入空行
+\noindent
+\textbf{Chapter 6, Extending the Preprocessor}
+
+\begin{enumerate}
+\item Most of the time tokens are harvested from the provided source code, but in some cases, tokens might be generated dynamically inside the Preprocessor. For example, the \_\_LINE\_\_ built-in macro is expanded to the current line number, and the \_\_DATE\_\_ macro is expanded to the current calendar date. How does Clang put that generated textual content into the SourceManager's source code buffer? How does Clang assign SourceLocation to these tokens?
+
+\begin{itemize}
+\item Developers can leverage the clang::ScratchBuffer class to insert dynamic Token instances.
+\end{itemize}
+
+\item When we were talking about implementing a custom PragmaHandler, we were using Preprocessor::Lex to fetch tokens followed after the pragma name, until we hit the eod token type. Can we keep lexing beyond the eod token? What interesting thing will you do if you can consume arbitrary tokens follow after the \#pragma directive?
+
+\begin{itemize}
+\item Yes, we can keep lexing beyond the eod token. It simply consumes the contents following the \#pragma line. In this way, you can create a custom \#pragma that allows you to write arbitrary content (below it) – for instance, writing programming languages that are not supported by Clang. Here is an example:
+
+\begin{lstlisting}[style=styleCXX]
+#pragma javascript function
+const my_func = (arg) => {
+	console.log(`Hello ${arg}`);
+};
+\end{lstlisting}
+
+The preceding snippet showed how to create a custom \#pragma that allows you to define a JavaScript function below it.
+\end{itemize}
+
+\item In the macro guard project from the Developing custom preprocessor plugins and callbacks section, the warning message has the format of [WARNING] In <source location>: ….. Apparently, this is not the typical compiler warning we see from Clang, which looks like <source location>: warning: …:
+
+\begin{tcblisting}{commandshell={}}
+./simple_warn.c:2:7: warning: unused variable 'y'…
+int y = x + 1;
+     ^
+1 warning generated.
+\end{tcblisting}
+
+The warning string is even colored in supported terminals. How can we print a warning message like that? Is there an infrastructure in Clang for doing that?
+
+\begin{itemize}
+\item Developers can use the diagnostics framework in Clang to print messages like this. In the Printing diagnostics messages section of Chapter 7, Handling AST, we will show you some of the usages of this framework.
+\end{itemize}
+
+\end{enumerate}
+
+\hspace*{\fill} \\ %插入空行
+\noindent
+\textbf{Chapter 8, Working with Compiler Flags and Toolchains}
+
+\begin{enumerate}
+\item It is common to override the assembling and linking stage, since different platforms tend to support different assemblers and linkers. But is it possible to override the compiling stage (which is Clang)? If it is possible, how do we do it? What might be the possible reasons for people to do that?
+
+\begin{itemize}
+\item You can override the ToolChain::SelectTool method and provide an alternative Tool instance (which represents the compilation stage) according to the argument. Here is an example:
+
+\begin{lstlisting}[style=styleCXX]
+Tool*
+MyToolChain::SelectTool(const JobAction &JA) const
+override {
+	if (JA.getKind() == Action::CompileJobClass &&
+		  getTriple().getArch() == CUSTOM_HARDWARE)
+		return new MyCompiler(…);
+	…
+	// Run the default `SelectTool` otherwise
+	return ToolChain::SelectTool(JA);
+}
+\end{lstlisting}
+
+In the preceding snippet, we provided our own compiler instance – MyCompiler – which is a class derived from Tool, if we are trying to compile the code for a certain hardware architecture.
+
+Providing an alternative compiler instance is useful when your target platform (for example, the CUSTOM\_HARDWARE in the preceding snippet) or input file is not supported by Clang, but you still want to use the same clang command-line interface for all the build jobs. For example, suppose you are trying to cross-compile the same projects to multiple different architectures, but some of them are not supported by Clang yet. Therefore, you can create a custom Clang toolchain and redirect the compilation job to an external compiler (for example, gcc) when the clang command-line tool is asked to build the project for those architectures.
+
+\end{itemize}
+
+\item When we were working on tools::zipline::Linker::ConstructJob, we simply use llvm\_unreachable to bail out the compilation process if the user provides an unsupported compressor name through the -fuse-ld flag. Can we replace it with Clang's diagnostic framework that we learned about in Chapter 7, Handling AST, to print out better messages?
+
+\begin{itemize}
+\item The Driver class provides a shortcut to access the diagnostic framework. Inside a derived class of Tool, you can use getToolChain().getDriver() to get a Driver instance, then print out the diagnostic message using the Driver::Diag method.
+\end{itemize}
+
+\item Just like we can use -Xclang to pass flags directly to the frontend, we can also pass assembler-specific or linker-specific flags directly to the assembler or linker using driver flags such as -Wa (for assembler) and -Wl (for linker). How do we consume those flags in our custom assembler and linker stages within Zipline?
+
+\begin{itemize}
+\item Inside the ConstructJob method, you can read the value of options::OPT\_Wa\_COMMA and options::OPT\_Wl\_COMMA to retrieve assembler- and linkerspecific command line flags, respectively. Here is an example:
+\end{itemize}
+
+\begin{lstlisting}[style=styleCXX]
+void
+MyAssembler::ConstructJob(Compilation &C,
+						  const JobAction &JA,
+						  const InputInfo &Output,
+						  const InputInfoList &Inputs,
+						  const ArgList &Args,
+						  const char *LinkingOutput)
+						  const {
+	if (Arg *A = Args.getLastArg(options::OPT_Wl_COMMA)) {
+		// `A` contains linker-specific flags
+		…
+	}
+	…
+}
+\end{lstlisting}
+
+\end{enumerate}
+
+
+\hspace*{\fill} \\ %插入空行
+\noindent
+\textbf{Chapter 9, Working with PassManager and AnalysisManager}
+
+\begin{enumerate}
+\item In the StrictOpt example in the Writing a LLVM Pass for the new PassManager section, how do we write a Pass without deriving the PassInfoMixin class?
+
+\begin{itemize}
+\item The PassInfoMixin class only defines a utility function for you, name, which returns the name of this Pass. Therefore, you can easily create one by yourself. Here is an example:
+
+\begin{lstlisting}[style=styleCXX]
+struct MyPass {
+	  static StringRef name() { return "MyPass"; }
+	PreservedAnalyses run(Function&, FunctionAnalysisManager&);
+};
+\end{lstlisting}
+
+\end{itemize}
+
+\item How do we develop custom instrumentation for the new PassManager? How do we do it without modifying the LLVM source tree? (Hint: Use the Pass plugin we learned in this chapter.)
+
+\begin{itemize}
+\item Pass instrumentation is a piece of code that runs before and/or after an LLVM Pass. This blog post shows an example of developing a custom Pass instrumentation via the Pass plugin: \url{https://medium.com/@mshockwave/writing-passinstrument-for-llvm-newpm-f17c57d3369f}.
+\end{itemize}
+
+\end{enumerate}
+
