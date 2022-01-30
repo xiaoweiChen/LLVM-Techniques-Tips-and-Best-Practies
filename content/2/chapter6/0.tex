@@ -1,13 +1,13 @@
-In the previous chapter, we went through the structure of Clang—the official frontend of Low-Level Virtual Machine (LLVM) for C-family languages—and some of its most important components. We also introduced a variety of Clang's tooling and extension options. In this chapter, we're diving into the first phase in Clang's frontend pipeline: the preprocessor.
+前一章中，我们讨论了Clang的结构——C语言\textbf{底层虚拟机(LLVM)}的官方前端——以及它的一些最重要的组件。还介绍了各种Clang的工具和扩展选项。本章中，将深入到Clang前端管道的第一阶段:预处理器。
 
-For C-family programming languages, preprocessing is an early compilation phase that replaces any directive starting with a hash (\#) character—\#include and \#define, to name but a few—with some other textual contents (or non-textual tokens, in some rare cases). For example, the preprocessor will basically copy and paste contents of header files designated by the \#include directive into the current compilation unit before parsing it. This technique has the advantage of extracting common code and reusing it.
+\textbf{预处理}是C族编程语言的一个早期编译阶段，会替换了任何以哈希(\#)字符开始的指令——\texttt{\#include}和\texttt{\#define}——只命名一个少数的文本内容(或非文本标记)。例如，在解析头文件之前，预处理器基本上会将由\texttt{\#include}指令指定的头文件的内容复制粘贴到当前编译单元中。这种技术的优点是可以提取通用代码进行重用。
 
-In this chapter, we will briefly explain how Clang's preprocessor/Lexer framework works, along with some crucial application programming interfaces (APIs) that can help your development in this section. In addition, Clang also provides some ways for developers to inject their custom logic into the preprocessing flow via plugins. For example, it allows you to create custom \#pragma syntax—such as that used by OpenMP (\#pragma omp loop, for example) —in an easier way. Learning these techniques yields you more options when solving problems of different abstraction levels. Here is the list of sections in this chapter:
+本章中，将简要了解Clang的\textbf{预处理器/词法分析器}框架是如何工作的，以及一些重要的\textbf{应用程序编程接口(API)}，这些接口可以帮助开发者进行开发。此外，Clang还提供了一些方法，让开发者可以通过插件将自定义逻辑注入到预处理流程中，例如：允许以一种更简单的方式创建自定义的\texttt{\#pragma}语法——OpenMP使用的语法(例如，\texttt{\#pragma omp}循环)。了解这些技术可以在解决不同抽象级别的问题时有更多的选择。以下是本章各小节的列表:
 
 \begin{itemize}
-\item Working with SourceLocation and SourceManager
-\item Learning preprocessor and lexer essentials
-\item Developing custom preprocessor plugins and callbacks
+\item 使用\texttt{SourceLocation}和\texttt{SourceManager}
+\item 了解预处理器和词法分析器的基本知识
+\item 定制开发预处理器的插件和回调
 \end{itemize}
 
 

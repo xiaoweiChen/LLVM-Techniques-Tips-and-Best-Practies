@@ -1,13 +1,12 @@
-This chapter expects you to have a build of the Clang executable. You can obtain this by
-running the following command:
+本章希望您能够构建Clang可执行文件，可以通过以下命令获取:
 
 \begin{tcblisting}{commandshell={}}
 $ ninja clang
 \end{tcblisting}
 
-Here is a useful command to print textual content right after preprocessing:
+下面的命令，可以在预处理后立即打印文本内容:
 
-The -E command-line option for clang is pretty useful for printing textual content right after preprocessing. As an example, foo.c has the following content:
+\texttt{clang}的\texttt{-E}选项对于在预处理之后立即打印文本内容非常有用。例如，\texttt{foo.}c包含如下内容:
 
 \begin{lstlisting}[style=styleCXX]
 #define HELLO 4
@@ -16,13 +15,13 @@ int foo(int x) {
 }
 \end{lstlisting}
 
-Use the following command:
+然后使用如下命令：
 
 \begin{tcblisting}{commandshell={}}
 $ clang -E foo.c
 \end{tcblisting}
 
-The preceding command will give you this output:
+上面的命令会给出这样的输出:
 
 \begin{lstlisting}[style=styleCXX]
 …
@@ -31,9 +30,9 @@ int foo(int x) {
 }
 \end{lstlisting}
 
-As you can see, HELLO was replaced by 4 in the code. You might be able to use this trick to debug when developing custom extensions in later sections.
+如您所见，代码中的\texttt{HELLO}被4替换了。后面，可以在开发自定义扩展时使用此技巧进行调试。
 
-Code used in this chapter can be found at this link: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter06}.
+本章的代码链接: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter06}.
 
 
 

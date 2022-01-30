@@ -1,9 +1,9 @@
 
-As flexible as other parts of LLVM and Clang, Clang's preprocessing framework also provides a way to insert custom logic via plugins. More specifically, it allows developers to write plugins to handle custom pragma directives (that is, allowing users to write something such as \#pragma my\_awesome\_feature). In addition, the Preprocessor class also provides a more general way to define custom callback functions in reaction to arbitrary preprocessing events— such as when a macro is expanded or a \#include directive is resolved, to name but a couple of examples. In this section, we're going to use a simple project that leverages both techniques to demonstrate their usage.
+Clang的预处理框架也提供通过插件插入自定义逻辑的方法，与LLVM和Clang的其他部分一样灵活。更具体地说，允许开发人员编写插件来处理定制的\textbf{pragma}指令(允许用户编写诸如\texttt{\#pragma my\_awesome\_feature}之类的东西)。此外，\texttt{Preprocessor}类还提供了一种更通用的方式来定义回调函数，以响应任意的\textbf{预处理事件}——例如，当宏展开或\texttt{\#include}指令解析时。本节中，我们将使用一个简单的项目，利用这两种技术来展示它们的用法。
 
-\subsubsubsection{6.4.1\hspace{0.2cm}The project goal and preparation}
+\subsubsubsection{6.4.1\hspace{0.2cm}项目的目标和准备工作}
 
-Macros in C/C++ have always been notorious for poor design hygiene that could easily lead to coding errors when used without care. Have a look at the following code snippet for an example of this:
+C/C++中的宏以不卫生的设计而臭名昭著，如果使用不当，很容易导致编码错误。请看下面的代码片:
 
 \begin{lstlisting}[style=styleCXX]
 #define PRINT(val) \
@@ -13,7 +13,7 @@ void main() {
 }
 \end{lstlisting}
 
-PRINT in the preceding code snippet looks just like a normal function, thus it's easy to believe that this program will print out 8. However, PRINT is a macro function rather than a normal function, so when it's expanded, the main function is equivalent to this:
+前面代码中的\texttt{PRINT}看起来就像一个普通的函数，因此很容易相信这个程序将输出8。然而这里，\texttt{PRINT}是一个宏函数而不是普通函数，所以当它展开时，main函数等价于:
 
 \begin{lstlisting}[style=styleCXX]
 void main() {
@@ -21,14 +21,14 @@ void main() {
 }
 \end{lstlisting}
 
-Therefore, the program actually prints 7. This ambiguity can of course be solved by wrapping every occurrence of the val macro argument in the macro body with parenthesis, as illustrated in the following code snippet:
+因此，程序实际输出7。这种歧义当然可以通过在宏体中每次出现\texttt{val}宏参数时都用括号括起来来解决，如下面的代码所示:
 
 \begin{lstlisting}[style=styleCXX]
 #define PRINT(val) \
 printf("%d\n", (val) * 2)
 \end{lstlisting}
 
-Therefore, after macro expansion, the main function will look like this:
+现在，宏展开后，主函数将是这样的:
 
 \begin{lstlisting}[style=styleCXX]
 void main() {
@@ -36,7 +36,7 @@ void main() {
 }
 \end{lstlisting}
 
-The project we're going to do here is to develop a custom \#pragma syntax to warn developers if a certain macro argument, designated by programmers, is not properly enclosed in parentheses, for the sake of preventing the preceding hygiene problems from happening. Here is an example of this new syntax:
+我们在这里要做的项目是开发一个自定义的\texttt{\#pragma}语法来警告开发人员，如果某个由程序员指定的宏参数没有正确地括在括号中，以防止前面的卫生问题发生。下面是这个新语法的例子:
 
 \begin{lstlisting}[style=styleCXX]
 #pragma macro_arg_guard val
@@ -47,18 +47,18 @@ void main() {
 }
 \end{lstlisting}
 
-Similar to previous example, if an occurrence of the preceding val argument is not enclosed in parentheses, this might introduce potential bugs.
+与前面的例子类似，如果前面的\texttt{val}参数没有出现在括号中，这会引入bug。
 
-In the new macro\_arg\_guard pragma syntax, tokens following the pragma name are the macro argument names to check in the next macro function. Since val in the val * 94 expression from the preceding code snippet is not enclosed in parentheses, it will print the following warning message:
+新的\texttt{macro\_arg\_guard pragma}语法中，\texttt{pragma}后面的标记是宏参数名，以便在下一个宏函数中检入。由于前面代码片段中的\texttt{val * 94}表达式中的\texttt{val}没有括在括号中，编译时将输出以下警告消息:
 
 \begin{tcblisting}{commandshell={}}
 $ clang … foo.c
 [WARNING] In foo.c:3:18: macro argument 'val' is not enclosed by parenthesis
 \end{tcblisting}
 
-This project, albeit being a toy example, is actually pretty useful when the macro function becomes pretty big or complicated, in which case manually adding parentheses on every macro argument occurrence might be an error-prone task. A tool to catch this kind of mistake would definitely be helpful.
+虽然只是一个简单的例子，但实际上在宏函数变得非常大或复杂时非常有用。这种情况下，手动为每个宏参数添加括号可能很容易出错。一个能够捕捉这种错误的工具绝对是有帮助的。
 
-Before we dive into the coding part, let's set up the project folder. Here is the folder structure:
+在我们深入编码部分之前，先建立项目文件夹。以下是文件夹结构:
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
@@ -70,9 +70,9 @@ MacroGuard \\
 \hspace*{0.5cm}|\_\_\_ MacroGuardValidator.cpp
 \end{tcolorbox}
 
-The MacroGuardPragama.cpp file includes a custom PragmaHandler function, which we're going to cover in the next section, Implementing a custom pragma handler. For MacroGuardValidator.h/.cpp, this includes a custom PPCallbacks function used to check if the designated macro body and arguments conform to our rules here. We will introduce this in the later, Implementing custom preprocessor callbacks section.
+\texttt{MacroGuardPragama.cpp}文件包括一个自定义的\texttt{PragmaHandler}函数，我们将在下一节实现这个函数时再讨论。对于\texttt{MacroGuardValidator.h/.cpp}，包括自定义的\texttt{PPCallbacks}函数，用于检查指定的宏体和参数是否符合这里的规则。
 
-Since we're setting up an out-of-tree project here, please refer to the Understanding CMake integration for out-of-tree projects section of Chapter 2, Exploring LLVM's Build System Features, in case you don't know how to import LLVM's own CMake directives (such as the add\_llvm\_library and add\_llvm\_executable CMake functions). And because we're also dealing with Clang here, we need to use a similar way to import Clang's build configurations, such as the include folder path shown in the following code snippet:
+因为这个项目是一个LLVM源码树之外的项目，如果不知道如何导入LLVM自己的CMake指令(比如\texttt{add\_llvm\_library}和\texttt{add\_llvm\_executable})，请参考第2章中相关章节。在这里也要处理Clang，所以需要使用类似的方式来导入Clang的构建配置，例如如下代码所示的包含文件夹路径:
 
 \begin{lstlisting}[style=styleCMake]
 # In MacroGuard/CmakeLists.txt
@@ -82,9 +82,9 @@ find_package(Clang REQUIRED CONFIG)
 include_directories(${CLANG_INCLUDE_DIRS}
 \end{lstlisting}
 
-The reason we don't need to set up Clang's library path here is because normally, plugins will dynamically link against libraries' implementations provided by the loader program (in our case, the clang executable) rather than linking those libraries explicitly during build time.
+这里不需要设置Clang库路径的原因是：通常情况下，插件会动态链接到加载程序提供的库的实现(在我们的例子中，是\texttt{clang}可执行文件)，而不是在构建时显式链接那些库。
 
-Finally, we're adding the plugin's build target, as follows:
+最后，添加插件的构建目标，如下所示:
 
 \begin{lstlisting}[style=styleCMake]
 set(_SOURCE_FILES
@@ -96,21 +96,21 @@ add_llvm_library(MacroGuardPlugin MODULE
 	PLUGIN_TOOL clang)
 \end{lstlisting}
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=The PLUGIN\_TOOL argument]
-\hspace*{0.7cm}The PLUGIN\_TOOL argument for the add\_llvm\_library CMake function seen in the preceding code snippet is actually designed exclusively for Windows platforms, since dynamic link library (DLL) files—the dynamic shared object file format in Windows—has an…interesting rule that requires a loader executable's name to be shown in the DLL file header. PLUGIN\_TOOL is also used for specifying this plugin loader executable's name.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=PLUGIN\_TOOL的参数]
+\hspace*{0.7cm}在前面的代码片段中看到的\texttt{add\_llvm\_library}的\texttt{PLUGIN\_TOOL}参数实际上是专为Windows平台设计的，因为动态链接库(DLL)文件——Windows中的动态共享对象文件格式——有一个……有趣的规则，要求加载器可执行文件的名称显示在DLL文件头中。\texttt{PLUGIN\_TOOL}用于指定插件加载程序的名称。
 \end{tcolorbox}
 
-After setting up the CMake script and building the plugin, you can use the following command to run the plugin:
+建立了CMake脚本并构建了插件之后，可以使用以下命令运行插件:
 
 \begin{tcblisting}{commandshell={}}
 $ clang … -fplugin=/path/to/MacroGuardPlugin.so foo.c
 \end{tcblisting}
 
-Of course, we haven't currently written any code, so nothing is printed out. In the next section, we will first develop a custom PragmaHandler instance to implement our new \#pragma macro\_arg\_guard syntax.
+当然，目前还没有编写任何代码，所以什么也没有打印出来。下一节中，我们将开发一个自定义的\texttt{PragmaHandler}实例来实现我们新的\texttt{\#pragma macro\_arg\_guard}语法。
 
-\subsubsubsection{6.4.2\hspace{0.2cm}Implementing a custom pragma handler}
+\subsubsubsection{6.4.2\hspace{0.2cm}实现自定义pragma}
 
-The first step of implementing the aforementioned features is to create a custom \#pragma handler. To do so, we first create a MacroGuardHandler class that derives from the PragmaHandler class inside the MacroGuardPragma.cpp file, as follows:
+实现上述特性的第一步是创建一个自定义的\texttt{\#pragma}处理程序。为此，首先创建一个\texttt{MacroGu\\ardHandler}类，其从\texttt{MacroGuardPragma.cpp}文件中的\texttt{PragmaHandler}类派生而来，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 struct MacroGuardHandler : public PragmaHandler {
@@ -120,22 +120,22 @@ struct MacroGuardHandler : public PragmaHandler {
 };
 \end{lstlisting}
 
-The HandlePragma callback function will be invoked whenever the Preprocessor encounters a non-standard pragma directive. We're going to do two things in this function, as follows:
+每当预处理程序遇到非标准的编译指令时，将调用\texttt{HandlePragma}回调函数。我们将在这个函数中做两件事，如下所示:
 
 \begin{enumerate}
-\item Retrieve any supplement tokens—treated as the pragma arguments—that follows after the pragma name token (macro\_arg\_guard).
+\item 检索\texttt{pragma name}标记(\texttt{macro\_arg\_guard})之后的任何补充标记(作为\texttt{pragma}参数处理)。
 
-\item Register a PPCallbacks instance that scans the body of the next macro function definition to see if specific macro arguments are properly enclosed by parentheses in there. We will outline the details of this task next.
+\item 注册一个\texttt{PPCallbacks}实例，扫描下一个宏函数定义的主体，看看特定的宏参数是否正确地用括号括起来。下面将概述这项任务的细节。
 \end{enumerate}
 
-For the first task, we are leveraging Preprocessor to help us parse the pragma arguments, which are macro argument names to be enclosed. When HandlePragma is called, the Preprocessor is stopped at the place right after the pragma name token, as illustrated in the following code snippet:
+对于第一个任务，我们利用\texttt{Preprocessor}来帮助我们解析pragma参数，这些参数是要封装的宏参数名。当调用\texttt{HandlePragma}时，\texttt{Preprocessor}则停在\texttt{pragma name}标记后面的位置，如下面的代码所示:
 
 \begin{tcblisting}{commandshell={}}
 #pragma macro_arg_guard val
                            ^--Stop at here
 \end{tcblisting}
 
-So, all we need to do is keep lexing and storing those tokens until hitting the end of this line:
+因此，我们需要做的就是继续词法分析和存储这些令牌，直到到达这一行的末尾:
 
 \begin{lstlisting}[style=styleCXX]
 void MacroGuardHandler::HandlePragma(Preprocessor &PP,…) {
@@ -148,9 +148,9 @@ void MacroGuardHandler::HandlePragma(Preprocessor &PP,…) {
 }
 \end{lstlisting}
 
-The eod token kind in the preceding code snippet means end of directive. It is exclusively used to mark the end of a preprocessor directive.
+上述代码片段中的\texttt{eod}令牌类型表示\textbf{指令的结束}。它专门用于标记预处理指令的结束。
 
-For the ArgsToEscped variable, the following global array stores the designated macro argument's IdentifierInfo objects:
+对于\texttt{ArgsToEscped}变量，下面的全局数组存储了指定宏参数的\texttt{IdentifierInfo}对象:
 
 \begin{lstlisting}[style=styleCXX]
 SmallVector<const IdentifierInfo*, 2> ArgsToEnclosed;
@@ -159,9 +159,9 @@ struct MacroGuardHandler: public PragmaHandler {
 };
 \end{lstlisting}
 
-The reason we're declaring ArgsToEnclosed in a global scope is that we're using it to communicate with our PPCallbacks instance later, which will use that array content to perform the validations.
+我们将\texttt{ArgsToEnclosed}声明在全局作用域中的原因是，稍后要使用它与我们的\texttt{PPCallbacks}实例通信，后者将使用该数组的内容来执行验证。
 
-Though the implementation details of our PPCallbacks instance, the MacroGuardValidator class, will not be covered until the next section, it needs to be registered with the Preprocessor when the HandlePragma function is called for the first time, as follows:
+尽管我们的\texttt{PPCallbacks}实例，即\texttt{MacroGuardValidator}类的实现细节要在下一节才讨论，但当\texttt{HandlePragma}函数第一次调用时，它需要在预处理器中注册，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 struct MacroGuardHandler : public PragmaHandler {
@@ -180,9 +180,9 @@ void MacroGuardHandler::HandlePragma(Preprocessor &PP,…) {
 }
 \end{lstlisting}
 
-We also use a flag to make sure it is only registered once. After this, whenever a preprocessing event happens, our MacroGuardValidator class will be invoked to handle it. In our case, we are only interested in the macro definition event, which signals to MacroGuardValidator to validate the macro body that it just defined.
+我们还使用一个标志来确保它只注册一次。在此之后，无论何时发生预处理事件，都将调用我们的\texttt{MacroGuardValidato}r类来处理。我们的例子中，只对宏定义事件感兴趣，该事件向\texttt{MacroGuardValidator}发出信号，以验证刚刚定义的宏体。
 
-Before wrapping up on PragmaHandler, we need some extra code to transform the handler into a plugin, as follows:
+在结束\texttt{PragmaHandler}之前，我们需要一些额外的代码将处理程序转换成一个插件，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 struct MacroGuardHandler : public PragmaHandler {
@@ -193,13 +193,13 @@ static PragmaHandlerRegistry::Add<MacroGuardHandler>
     enclosed");
 \end{lstlisting}
 
-After declaring this variable, when this plugin is loaded into clang, a MacroGuardHandler instance is inserted into a global PragmaHandler registry, which will be queried by the Preprocessor whenever it encounters a non-standard \#pragma directive. Now, Clang is able to recognize our custom macro\_arg\_guard pragma when the plugin is loaded.
+声明了这个变量之后，当这个插件加载到\texttt{clang}时，一个\texttt{MacroGuardHandler}实例将插入到全局的\texttt{PragmaHandler}注册表中，当它遇到一个非标准的\texttt{\#pragma}指令时，预处理器将查询注册表。当插件加载时，Clang就能够识别我们自定义的\texttt{macro\_arg\_guard}。
 
-\subsubsubsection{6.4.3\hspace{0.2cm}Implementing custom preprocessor callbacks}
+\subsubsubsection{6.4.3\hspace{0.2cm}实现自定义预处理器的回调}
 
-Preprocessor provides a set of callbacks, the PPCallbacks class, which will be triggered when certain preprocessor events (such as a macro being expanded) happen. The previous, Implementing a custom pragma handler section, showed you how to register your own PPCallbacks implementations, the MacroGuardValidator, with Preprocessor. Here, we're going to show you how MacroGuardValidator validates the macro argument-escaping rule in macro functions.
+\texttt{Preprocessor}提供了一组回调函数，即\texttt{PPCallbacks}类，当某些预处理器事件(比如：宏扩展)发生时，这些回调函数将触发。上一节，展示了如何注册自己的\texttt{PPCallbacks}实现，即\texttt{MacroGuardValidator}与\texttt{Preprocessor}。这里，展示了\texttt{MacroGuardValidator}如何在宏函数中验证宏参数-转义的规则。
 
-First, in MacroGuardValidator.h/.cpp, we put the following skeleton:
+首先，在\texttt{MacroGuardValidator.h/.cpp}中，放入以下框架:
 
 \begin{lstlisting}[style=styleCXX]
 // In MacroGuardValidator.h
@@ -219,9 +219,9 @@ void MacroGuardValidator::MacroDefined(const Token
 }
 \end{lstlisting}
 
-Among all the callback functions in PPCallbacks, we're only interested in MacroDefined, which will be invoked when a macro definition is processed, represented by the MacroDirective type function argument (MD). The SourceManager type member variable (SM) is used for printing SourceLocation when we need to show some warning messages.
+在\texttt{PPCallbacks}的所有回调函数中，我们只对\texttt{MacroDefined}感兴趣，它在宏定义处理时调用，由\texttt{MacroDirective}类型函数参数(\texttt{MD})表示。需要显示一些警告消息时，\texttt{SourceManager}类型成员变量(\texttt{SM})用于打印\texttt{SourceLocation}。
 
-Focusing on MacroGuardValidator::MacroDefined, the logic here is pretty simple: for each identifier in the ArgsToEnclosed array, we're scanning macro body tokens to check if its occurrences have parentheses as its predecessor and successor tokens. First, let's put in the loop's skeleton, as follows:
+这里关注于\texttt{MacroGuardValidator::MacroDefined}，其实逻辑非常简单:对于\texttt{ArgsToEnclosed}数组中的每个标识符，我们都扫描宏体，以检查它的出现是否有括号作为它的前代和后代令牌。首先，让我们将其放入循环的框架，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 void MacroGuardValidator::MacroDefined(const Token
@@ -238,7 +238,7 @@ void MacroGuardValidator::MacroDefined(const Token
 }
 \end{lstlisting}
 
-If a macro body token's IdentifierInfo argument matches ArgII, this means there is a macro argument occurrence, and we check that token's previous and next tokens, as follows:
+如果一个宏体令牌的\texttt{IdentifierInfo}参数与\texttt{ArgII}匹配，这意味着出现了一个宏参数，我们检查该令牌的前一个和下一个令牌，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 for (const IdentifierInfo *ArgII : ArgsToEnclosed) {
@@ -259,13 +259,13 @@ for (const IdentifierInfo *ArgII : ArgsToEnclosed) {
 }
 \end{lstlisting}
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Uniqueness of IdentifierInfo instances]
-\hspace*{0.7cm}Recall that same identifier strings are always represented by the same IdentifierInfo object. That's the reason we can simply use pointer comparison here.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=\texttt{IdentifierInfo}实例的唯一性]
+\hspace*{0.7cm}回想一下，相同的标识符字符串总是由相同的\texttt{IdentifierInfo}对象表示。这就是这里可以简单地使用指针比较的原因。
 \end{tcolorbox}
 
-The MacroInfo::tokens\_begin function returns an iterator pointing to the beginning of an array carrying all the macro body tokens.
+\texttt{MacroInfo::tokens\_begin}函数返回一个迭代器，指向一个包含所有宏体令牌的数组开头。
 
-Finally, we print a warning message if the macro argument token is not enclosed by parentheses, as follows:
+最后，如果宏参数令牌没有括起来，则会打印一个警告消息，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 for (const IdentifierInfo *ArgII : ArgsToEnclosed) {
@@ -289,7 +289,7 @@ for (const IdentifierInfo *ArgII : ArgsToEnclosed) {
 }
 \end{lstlisting}
 
-And that's all for this section. You're now able to develop a PragmaHandler plugin that can be dynamically loaded into Clang to handle custom \#pragma directives. You've also learned how to implement PPCallbacks to insert custom logic whenever a preprocessor event happens.
+这部分就讲到这里了。读者们现在可以开发一个\texttt{PragmaHandler}插件，可以动态加载到Clang中来处理自定义的\texttt{\#pragma}指令。还了解了如何实现\texttt{PPCallbacks}，以便在预处理器事件发生时插入自定义逻辑。
 
 
 
