@@ -1,15 +1,15 @@
-In the previous chapter, we learned how Clang's preprocessor handles preprocessing directives in C-family languages. We also learned how to write different kinds of preprocessor plugins, such as pragma handlers, to extend Clang's functionalities. Those skills are especially useful when it comes to implementing field-specific logic or even custom language features.
+在前一章中，了解了Clang的预处理器如何处理C族语言中的预处理指令。我们还了解了如何编写不同类型的预处理器插件，比如：pragma处理程序，以扩展Clang的功能。当涉及到实现特定领域的逻辑或甚至定制语言特性时，这些技能尤为有用。
 
-In this chapter, we're going to talk about a semantic-aware representation of the original source code file once it has been parsed, known as an Abstract Syntax Tree (AST). An AST is a format that carries rich semantic information, including types, expression trees, and symbols, to name a few. It is not only used as a blueprint to generate LLVM IR for later compilation stages but is also the recommended format for performing static analysis. On top of that, Clang also provides a nice framework for developers to intercept and manipulate AST in the middle of the frontend pipeline via a simple plugin interface.
+本章中，将讨论解析后的原始源代码文件的\textbf{语义感知}表示，即\textbf{抽象语法树(AST)}。AST是一种包含丰富语义信息的格式，其中包括类型、表达式树和符号等。不仅可用作生成LLVM IR的蓝图，供以后的编译阶段使用，而且还是执行静态分析的推荐格式。除此之外，Clang还提供了一个很好的框架，让开发者可以通过一个简单的插件接口在前端管道的中间拦截和操作AST。
 
-In this chapter, we are going to cover how to process AST in Clang, the important APIs for in-memory AST representation, and how to write AST plugins to implement custom logic with little effort. We will cover the following topics:
+在本章中，我们将介绍如何在Clang中处理AST，内存中AST表示的重要API，以及如何编写AST插件来实现自定义逻辑。我们将讨论以下内容:
 
 \begin{itemize}
-\item Learning about AST in Clang
-\item Writing AST plugins
+\item Clang中的AST
+\item 编写AST插件
 \end{itemize}
 
-By the end of this chapter, you will know how to work with AST in Clang in order to analyze programs at the source code level. In addition, you will know how to inject custom AST processing logic into Clang in an easy way via AST plugins.
+在本章结束时，将了解如何在Clang中使用AST，以便在源代码级别对程序进行分析。此外，还将了解如何通过AST插件轻松地将自定义AST处理逻辑注入到Clang中。
 
 
 

@@ -1,24 +1,24 @@
 
 
-This chapter expects that you have a build of the clang executable. If you don't, please build it using the following command:
+本章需要构建\texttt{clang}可执行文件。如果没有，可以使用以下命令构建:
 
 \begin{tcblisting}{commandshell={}}
 $ ninja clang
 \end{tcblisting}
 
-In addition, you can use the following command-line flag to print out the textual representation of AST:
+另外，可以使用下面的命令行标志来打印AST的文本表示:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -Xclang -ast-dump foo.c
 \end{tcblisting}
 
-For example, let's say foo.c contains the following content:
+例如，\texttt{foo.c}包含以下内容:
 
 \begin{lstlisting}[style=styleCXX]
 int foo(int c) { return c + 1; }
 \end{lstlisting}
 
-By using the -Xclang -ast-dump command-line flag, we can print out AST for foo.c:
+使用\texttt{-Xclang -ast-dump}命令行标志，我们可以为\texttt{foo.c}输出AST:
 
 \begin{tcblisting}{commandshell={}}
 TranslationUnitDecl 0x560f3929f5a8 <<invalid sloc>> <invalid sloc>
@@ -26,6 +26,8 @@ TranslationUnitDecl 0x560f3929f5a8 <<invalid sloc>> <invalid sloc>
 `-FunctionDecl 0x560f392e1350 <foo.c:2:1, col:30> col:5 foo
 'int (int)'
   |-ParmVarDecl 0x560f392e1280 <col:9, col:13> col:13 used c 'int'
+\end{tcblisting}
+\begin{tcblisting}{commandshell={}}
   `-CompoundStmt 0x560f392e14c8 <col:16, col:30>
     `-ReturnStmt 0x560f392e14b8 <col:17, col:28>
       `-BinaryOperator 0x560f392e1498 <col:24, col:28> 'int' '+'
@@ -35,9 +37,9 @@ TranslationUnitDecl 0x560f3929f5a8 <<invalid sloc>> <invalid sloc>
         `-IntegerLiteral 0x560f392e1460 <col:28> 'int' 1
 \end{tcblisting}
 
-This flag is useful for finding out what C++ class is used to represent a certain part of the code. For example, the formal function parameter/argument is represented by the ParmVarDecl class, which is highlighted in the previous code.
+这个标志对于找出用什么C++类来表示代码非常有用。例如，正式的函数参数/参数由\texttt{ParmVarDecl}类表示，在前面的代码中突出显示了这个类。
 
-The code samples for this chapter can be found here: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter07}.
+本章的代码示例连接: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter07}.
 
 
 

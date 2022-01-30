@@ -1,25 +1,25 @@
 
-In the previous section, we learned how AST is represented in Clang and learned what its in-memory classes look like. We also learned about some useful skills we can use to perform pattern matching on Clang AST. In this section, we will learn how to write plugins that allow you to insert custom AST processing logic into Clang's compilation pipeline.
+前一节中，我们了解了如何在Clang中表示AST，以及它的内存类是什么样子的。我们还了解了一些有用的技巧，可以用来在Clang AST上执行模式匹配。这一节中，我们将了解如何编写插件，并将自定义的AST处理逻辑插入到Clang的编译管道中。
 
-This section will be divided into three parts:
+本节将分为三个部分:
 
 \begin{itemize}
-\item Project overview: The goal and overview of the demo project we are going to create in this section.
+\item \textbf{项目概述}:我们将在本节中创建的演示项目的目标和概述。
 
-\item Printing diagnostic messages: Before we dive into the core of developing a plugin, we are going to learn how to use Clang's DiagnosticsEngine, a powerful subsystem that helps you print out well-formatted and meaningful diagnostic messages. This will make our demo project more applicable to real-world scenarios.
+\item \textbf{打印诊断消息}:在我们深入开发插件的核心之前，我们将了解如何使用Clang的\texttt{Diagnostic\\sEngine}，这是一个功能强大的子系统，可以打印出格式良好且有意义的诊断消息。这将使我们的演示项目更适用于实际场景。
 
-\item Creating the AST plugin: This section will show you how to create an AST plugin from scratch, fill in all the implementation details, and how to run it with Clang.
+\item \textbf{创建AST插件}:这一节将向你展示如何从头开始创建一个AST插件，填充所有实现细节，以及如何使用Clang运行它。
 \end{itemize}
 
-\subsubsubsection{7.3.1\hspace{0.2cm}Project overview}
+\subsubsubsection{7.3.1\hspace{0.2cm}项目概述}
 
-In this section, we will create a plugin that prompts the user with warning messages whenever there are if-else statements in the input code that can be converted into ternary operators.
+本节中，我们将创建一个插件，每当输入代码中出现可转换为\textbf{三元操作符}的\texttt{if-else}语句时，该插件就会用警告消息提示用户。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Quick Refresher – Ternary Operator]
-\hspace*{0.7cm}The ternary operator, x? val\_1 : val\_2, is evaluated to val\_1 when the x condition is true. Otherwise, it is evaluated to val\_2.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=快速复习——三元运算符]
+\hspace*{0.7cm}三元运算符\texttt{x ? val\_1 : val\_2}，当\texttt{x}为真时，结果为\texttt{val\_1}，否则为\texttt{val\_2}。
 \end{tcolorbox}
 
-For example, let's look at the following C/C++ snippet:
+例如，让我们看看下面的C/C++代码:
 
 \begin{lstlisting}[style=styleCXX]
 int foo(int c) {
@@ -40,7 +40,7 @@ void bar(int x) {
 }
 \end{lstlisting}
 
-The if-else statements in both functions can be converted into ternary operators, like this:
+两个函数中的\texttt{if-else}语句都可以转换成三元操作符，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 int foo(int c) {
@@ -53,15 +53,15 @@ void bar(int x) {
 }
 \end{lstlisting}
 
-In this project, we will only focus on finding two kinds of potential ternary operator opportunities:
+在本项目中，我们只关注寻找两种潜在的三元操作符机会:
 
 \begin{itemize}
-\item Both the then block (true branch) and the else block (false branch) contain a single return statement. In this case, we can coalesce their return values and the branch condition into one ternary operator (as the new returned value).
+\item \texttt{then}块(true分支)和\texttt{else}块(false分支)都包含一个\texttt{return}语句。本例中，可以将它们的返回值和分支条件合并成一个三元操作符(作为新的返回值)。
 
-\item Both the then block and the else block only contain a single assignment statement. Both statements use a single DeclRefExpr – that is, a symbol reference – as the LHS, and both DeclRefExpr objects point to the same Decl (symbol). In other words, we are covering the case of the bar function shown in the preceding snippet. Note that we are not covering cases where the LHS is more complicated; for example, where an array subscription, a[i], is used as the LHS.
+\item \texttt{then}块和\texttt{else}块都只包含一个赋值语句。这两个语句都使用一个\texttt{DeclRefExpr}(即符号引用)作为LHS，并且两个\texttt{DeclRefExpr}对象都指向同一个\texttt{Decl}(符号)。换句话说，讨论前面代码片段中的\texttt{bar}函数的情况。请注意，我们不讨论LHS更复杂的情况，例如：数组下标，a[i]用作LHS的情况。
 \end{itemize}
 
-After identifying these patterns, we must prompt warning messages to the user and provide extra information to help the user fix this issue:
+在识别这些模式之后，我们必须向用户提示警告信息，并提供额外的信息来帮助用户解决这个问题:
 
 \begin{tcblisting}{commandshell={}}
 $ clang …(flags to run the plugin) ./test.c
@@ -86,120 +86,119 @@ $ clang …(flags to run the plugin) ./test.c
 2 warnings generated.
 \end{tcblisting}
 
-Each warning message – which tells you which if-else statement can be converted into a ternary operator – is followed by two notes pointing out the potential expressions to construct for the operator.
+每个警告消息(说明哪个\texttt{if-else}语句可以转换为三元操作符)后面都有两条注释，指出要为该操作符构造的可能表达式。
 
-Compared to handcrafting compiler messages, as we did in the Developing custom preprocessor plugins and callbacks section of Chapter 6, Extending the Preprocessor, here, we are using Clang's diagnostics infrastructure to print messages that carry richer information, such as the snapshot of code that the message is referring to. We will show you how to use that diagnostic infrastructure next.
+与手工编译器消息相比(第6章)，这里我们使用Clang的诊断设施来打印带有更丰富信息的消息，比如：消息所引用的代码快照。接下来，我们将展示如何使用该诊断设施。
 
-\subsubsubsection{7.3.2\hspace{0.2cm}Printing diagnostic messages}
+\subsubsubsection{7.3.2\hspace{0.2cm}打印诊断消息}
 
-In Chapter 6, Extending the Preprocessor, we asked if you could improve the warning message format in the example project shown in the Developing custom preprocessor plugins and callbacks section, so that it's closer to the compiler messages you saw from Clang. One of the solutions to that question is using Clang's diagnostic framework. We are going to look at this in this section.
+第6章中，我们提出是否可以开发自定义预处理器插件和回调的示例中改进警告消息格式的问题，以便它更接近Clang现有的消息格式。这个问题的解决方案之一是使用Clang的诊断框架。我们将在本节中继续来探讨这个问题。
 
-Clang's diagnostic framework consists of three primary parts:
+Clang的诊断框架由三个主要部分组成:
 
 \begin{itemize}
-\item Diagnostic IDs
-\item Diagnostic engine
-\item Diagnostic consumers (clients)
+\item \textbf{诊断ID}
+\item \textbf{诊断引擎}
+\item \textbf{诊断用户(客户端)}
 \end{itemize}
 
-Their relationships can be seen in the following diagram:
+它们的关系如下图所示:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
 \includegraphics[width=0.9\textwidth]{content/2/chapter7/images/5.png}\\
-Figure 7.5 – High-level organization of Clang's diagnostic framework
+图7.5 - Clang诊断框架的高层组织结构
 \end{center}
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Diagnostic messages}
+\textbf{诊断信息}
 
-Starting from the left-hand side of the preceding diagram, most of the time, a diagnostic message – for example, use of undeclared identifier "x" – is associated with a message template that has its own diagnostic ID. Using the undeclared identifier message, for example, its message template looks like this:
+从上图的左边开始，诊断消息——例如，使用未声明的标识符“x”——与具有自己诊断ID的消息模板相关联，“使用未声明的标识符消息”的消息模板如下所示:
 
 \begin{tcblisting}{commandshell={}}
 "use of undeclared identifier %0"
 \end{tcblisting}
 
-\%0 is a placeholder that will be filled in by supplemental data later. In this case, it is the concrete identifier name (x, in the preceding example message). The number following \% also suggests which supplemental data it will use. We will cover this format in detail shortly.
+\texttt{\%0}是一个\textbf{占位符}，稍后将由相应数据填充。本例中，它是具体的标识符名称(在前面的示例消息中是x)。\texttt{\%}后面的数字也表明了它将使用的数据。我们稍后将会详细讨论这种格式。
 
-Templates are registered with the diagnostic engine via TableGen syntax. For example, the message we are discussing here is put inside clang/include/clang/Basic/DiagnosticSemaKinds.td:
+模板通过TableGen语法注册到诊断引擎。例如，这里讨论的消息模板就放在\texttt{clang/include/\\clang/Basic/DiagnosticSemaKinds.td}中:
 
 \begin{lstlisting}[style=stylePython]
 def err_undeclared_var_use : Error<"use of undeclared identifier %0">;
 \end{lstlisting}
 
-We highlighted two parts in the preceding snippet. First, the name of this message template, err\_undeclared\_var\_use, will be used later as the unique diagnostic ID. Second, the Error TableGen class suggested that this is an error message, or more formally speaking, its diagnostic level error.
+在前面的代码中，我们强调了两个部分。首先，这个消息模板的名称\texttt{err\_undeclare\_var\_use}，稍后将用作唯一的诊断ID。第二，\texttt{Error}是一个带有错误消息的TableGen类，或者更正式地说，带有的是诊断级别错误。
 
-In summary, a diagnostic message consists of a unique diagnostic ID – which is associated with a message template and its diagnostic level – and the supplemental data to put in the placeholders of the template, if there are any.
-
-\hspace*{\fill} \\ %插入空行
-\noindent
-\textbf{Diagnostic consumers}
-
-After the diagnostic message is sent to the diagnostic engine – represented by the DiagnosticsEngine class – the engine formats the messages into textual contents and send them to one of the diagnostic consumers (also called clients in the code base; we will use the term consumer in rest of this section).
-
-A diagnostic consumer – an implementation of the DiagnosticConsumer class – post-processes the textual messages sent from DiagnosticsEngine and exports them via different mediums. For example, the default TextDiagnosticPrinter prints messages to the command-line interface; LogDiagnosticPrinter, on the other hand, decorates the incoming messages with simple XML tags before printing them into log files. In theory, you can even create a custom DiagnosticConsumer that sends diagnostic messages to a remote host!
+总之，诊断消息由唯一的诊断ID(与消息模板及其诊断级别相关联)和数据组成，这些数据用于插入模板的占位符(如果有的话)。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Reporting diagnostic messages}
+\textbf{诊断用户}
 
-Now that you have learned how Clang's diagnostic framework works, let's learn how to send (report) a diagnostic message to DiagnosticEngine:
+诊断消息发送到诊断引擎(由\texttt{DiagnosticsEngine}类表示)之后，引擎将消息格式化为文本内容，并将它们发送给\textbf{诊断用户}(在代码库中也称为客户端)。
+
+诊断用户(\texttt{DiagnosticConsumer}类的另一个实现)对从\texttt{DiagnosticsEngine}发送的文本消息进行处理后，通过不同的介质导出它们。例如，默认的\texttt{TextDiagnosticPrinter}将消息打印到命令行界面;另一方面，\texttt{LogDiagnosticPrinter}将传入消息打印到日志文件之前，会用简单的XML标记来进行装饰。理论上，可以创建一个自定义的\texttt{DiagnosticConsumer}来发送诊断消息到远程主机!
+
+\hspace*{\fill} \\ %插入空行
+\noindent
+\textbf{报告诊断消息}
+
+现在你已经了解了Clang的诊断框架是如何工作的，让我们了解一下如何发送(报告)诊断消息到诊断引擎:
 
 \begin{enumerate}
-\item First, we need to retrieve a reference to DiagnosticEngine. The engine itself is sitting at the core of Clang's compilation pipeline, so you can fetch it from various primary components, such as ASTContext and SourceManager. The following is an example:
+\item 首先，需要检索对\texttt{DiagnosticEngine}的引用。这个引擎位于Clang编译管道的核心，所以可以从各种主组件中获取，比如：\texttt{ASTContext}和\texttt{SourceManager}。示例如下:
 
 \begin{lstlisting}[style=styleJavaScript]
 // `Ctx` has the type of `ASTContext&`
 DiagnosticsEngine& Diag = Ctx.getDiagnostics();
 \end{lstlisting}
 
-\item Next, we need to use the DiagnosticsEngine::Report function. This function always takes a diagnostic ID as one of its arguments. For example, to report err\_undeclared\_var\_use, which we introduced earlier, use the following code:
+\item 接下来，需要使用\texttt{DiagnosticsEngine::Report}函数，将诊断ID作为其参数之一，例如：报告\texttt{err\_undeclare \_var\_use}(在前面介绍过)，就可以使用以下代码:
 
 \begin{lstlisting}[style=styleJavaScript]
 Diag.Report(diag::err_undeclared_var_use);
 \end{lstlisting}
 
-However, we know that err\_undeclared\_var\_use takes one placeholder argument – namely, the identifier name – which is supplied through concatenating the Report function call with << operators:
+然而，\texttt{err\_undeclare\_var\_use}有一个占位符实参——即标识符名——通过\texttt{Report}函数和\texttt{<<}操作符来提供:
 
 \begin{lstlisting}[style=styleJavaScript]
 Diag.Report(diag::err_undeclared_var_use) << ident_name_str;
 \end{lstlisting}
 
-\item Recall that err\_undeclared\_var\_use only has one placeholder, \%0, so it picks up the first values in the following << stream. Let's say we have a diagnostic message, err\_invalid\_placement, with the following template:
+\item \texttt{err\_undeclare\_var\_use}只有一个占位符\texttt{\%0}，所以会获取\texttt{<<}流中的第一个值。假设我们有一个诊断消息，\texttt{err\_invalid\_placement}，使用下面的模板:
 
 \begin{lstlisting}[style=styleJavaScript]
 "you cannot put %1 into %0"
 \end{lstlisting}
 
-\item You can report this using the following code:
+\item 可以使用下面的代码进行报告:
 \begin{lstlisting}[style=styleJavaScript]
 Diag.Report(diag::err_invalid_placement)
             << "boiling oil" << "water";
 \end{lstlisting}
 
-
-\item In addition to simple placeholders, another useful feature is the \%select directive. For example, we have a diagnostic message, warn\_exceed\_limit, with a template like this:
+\item 除了简单的占位符之外，另一个有用的特性是\texttt{\%select}指令，例如：有一个诊断消息\texttt{warn\_exceed\_limit}，模板如下:
 
 \begin{lstlisting}[style=styleJavaScript]
 "you exceed the daily %select{wifi|cellular network}0 limit"
 \end{lstlisting}
 
-The \%select directive consists of curly braces in which different message options are separated by |. Outside the curly braces, a number – 0, in the preceding code – indicates which supplement data is used to select the option within the braces. The following is an example of this:
+\texttt{\%select}指令由大括号组成，其中不同的消息选项由\texttt{|}分隔。在大括号之外，前面代码中的一个数字(0)表示使用哪些数据来填充大括号内的选项。下面是一个例子:
 
 \begin{lstlisting}[style=styleJavaScript]
 Diag.Report(diag::warn_exceed_limit) << 1;
 \end{lstlisting}
 
-The preceding snippet will output You exceed the daily cellular network limit. Let's say you use 0 as the parameter after the stream operator (<<):
+上面的代码将输出“\textbf{You exceed the daily cellular network limit}”。假设你使用0作为流操作符(<<)后面的参数:
 
 \begin{lstlisting}[style=styleJavaScript]
 Diag.Report(diag::warn_exceed_limit) << 0;
 \end{lstlisting}
 
-This will result in a message stating you exceed the daily wifi limit.
+这将发出一个消息：超过了每天的wifi的流量限制(\textbf{you exceed the daily wifi limit})。
 
-\item Now, let's say you use another version of the Report function, which takes an additional SourceLocation argument:
+\item 假设使用另一个\texttt{Report}函数，它有一个\texttt{SourceLocation}参数:
 
 \begin{lstlisting}[style=styleJavaScript]
 // `SLoc` has the type of `SourceLocation`
@@ -207,7 +206,7 @@ Diag.Report(SLoc, diag::err_undeclared_var_use)
                   << ident_name_str;
 \end{lstlisting}
 
-The output message will contain part of the source code being pointed to by SLoc:
+输出消息将包含\texttt{SLoc}指向的部分源码:
 
 \begin{tcblisting}{commandshell={}}
 test.cc:2:10: error: use of undeclared identifier 'x'
@@ -215,7 +214,7 @@ test.cc:2:10: error: use of undeclared identifier 'x'
           ^
 \end{tcblisting}
 
-\item Last but not least, though most of the diagnostic messages are registered with DiagnosticsEngine via TableGen code put inside Clang's source tree, this doesn't mean that developers cannot create their new diagnostic messages without modifying Clang's source tree. Let's introduce DiagnosticsEngine::getCustomDiagID(…), the API that creates a new diagnostic ID from a message template and diagnostic level provided by developers:
+\item 最后，尽管大多数诊断消息是通过Clang源代码树中的TableGen代码注册到\texttt{DiagnosticsEngine}的，但这并不意味着开发者可以在修改Clang源代码树的情况下创建新的诊断消息。让我们来看下\texttt{DiagnosticsEngine::getCustomDiagID(…)}，这个API可以从一个消息模板和开发人员提供的诊断级别创建新的诊断ID:
 
 \begin{lstlisting}[style=styleJavaScript]
 auto MyDiagID = Diag.
@@ -223,7 +222,7 @@ getCustomDiagID(DiagnosticsEngine::Note,
 "Today's weather is %0");
 \end{lstlisting}
 
-The preceding snippet creates a new diagnostic ID, MyDiagID, that has a message template of Today's weather is \%0 at its note diagnostic level. You can use this diagnostic ID just like any other ID:
+前面的代码创建的新诊断ID为\texttt{MyDiagID}，它是在诊断级别上的消息模板，比如：\textbf{Today's weather is\%0}。可以像使用其他ID一样使用这个诊断ID:
 
 \begin{lstlisting}[style=styleJavaScript]
 Diag.Report(MyDiagID) << "cloudy";
@@ -231,24 +230,25 @@ Diag.Report(MyDiagID) << "cloudy";
 
 \end{enumerate}
 
-In this section, you learned how to leverage Clang's diagnostic framework to print out messages just like normal compiler messages.
+在本节中，了解了如何利用Clang的诊断框架来打印消息，就像普通编译器消息一样。
 
-Next, we are going to combine all the skills we've learned about in this chapter to create a custom AST plugin.
+接下来，我们将结合本章学到的所有技能来创建一个自定义的AST插件。
 
-\subsubsubsection{7.3.3\hspace{0.2cm}Creating the AST plugin}
+\subsubsubsection{7.3.3\hspace{0.2cm}创建AST插件}
 
-In the previous sections of this chapter, we explored Clang's AST and learned how to use it in in-memory APIs. In this section, we will learn how to write a plugin that helps you insert your custom AST processing logic into Clang's compilation pipeline in an easy way.
+本章的前几节中，我们探索了Clang的AST，并了解了如何在内存API中使用。本节中，我们来了解如何编写一个插件，以一种简单的方式将自定义的AST处理逻辑插入到Clang的编译管道中。
 
-In Chapter 5, Exploring Clang's Architecture, we learned about the advantages of using Clang (AST) plugins: they can be developed even you are using a prebuilt clang executable, they are easy to write, and they have good integration with the existing toolchain and build systems, to name a few. In Chapter 6, Extending the Preprocessor, we developed a plugin for custom pragma handling in the preprocessor. In this chapter, we will also be writing a plugin, but this one will be designed for custom AST processing. The code skeletons for these two plugins are also quite different.
+在第5章，我们了解了使用Clang (AST)插件的优势:即使使用一个预构建的Clang可执行文件，也可以进行开发使用，插件很容易编写，可以与现有的工具链和构建系统有很好的集成等。在第6章中，我们开发了一个用于预处理器中自定义编译处理的插件。本章中，我们还将编写一个插件，但这个插件为自定义AST处理而设计。这两个插件的代码框架也有很大的不同。
 
-We introduced the sample project we will be using in this section in the Project overview section. This plugin will prompt users with warning messages if some if-else statements in the input code can be converted into ternary operators. In addition, it also shows extra hints about candidate expressions for building the ternary operator.
+我们在项目概述一节中介绍了本节将使用的示例项目。如果输入代码中的某些\texttt{if-else}语句可以转换成三元运算符，这个插件会提示用户警告消息。此外，它还显示了关于构建三元操作符的候选表达式的提示。
 
-Here are the detailed steps for building the plugin:
+下面是构建插件的详细步骤:
 
 \begin{enumerate}
-\item Similar to the pragma plugin we saw in Chapter 6, Extending the Preprocessor, creating a plugin in Clang is basically like implementing a class. In the case of the AST plugin, this will be the PluginASTAction class.
+\item 与我们在第6章中看到的pragma插件类似，在Clang中创建一个插件基本上就像实现一个类。在开发AST插件时，将使用\texttt{PluginASTAction}类。
 
-PluginASTAction is a subclass of ASTFrontendAction – a FrontendAction specialized for handling AST (if you're not familiar with FrontendAction, feel free to read Chapter 5, Exploring Clang's Architecture, again). Thus, we need to implement the CreateASTConsumer member function:
+\texttt{PluginASTAction}是\texttt{ASTFrontendAction}的子类——专门用于处理AST的\texttt{FrontendAction}(如果你不熟悉\texttt{FrontendAction}，可以回顾一下第5章的内容)。因此，我们需要实现\texttt{CreateASTConsumer}成员函数:
+
 \begin{lstlisting}[style=styleCXX]
 struct TernaryConverterAction : public PluginASTAction {
 	std::unique_ptr<ASTConsumer>
@@ -256,20 +256,20 @@ struct TernaryConverterAction : public PluginASTAction {
                       StringRef InFile) override;
 };
 \end{lstlisting}
-We will fill in this function later.
 
+我们将在稍后填充这个函数。
 
-\item In addition to CreateASTConsumer, there are two other member functions we can override to change some of the functionalities: getActionType and ParseArgs. The former tells Clang how this plugin should be executed by returning one of the enum values shown here:
+\item 除了\texttt{CreateASTConsumer}外，还可以重写另外两个成员函数来更改一些功能:\texttt{getActionType}和\texttt{ParseArgs}。前者告诉Clang如何执行这个插件，返回一个枚举值如下所示:
 
 \begin{enumerate}[label=\alph*.]
-\item Cmdline: The plugin will be executed after the main action if users provide the -plugin <plugin name> (frontend) command-line flag.
+\item \texttt{Cmdline}: 如果用户提供\texttt{-plugin <plugin name>}(前端的)命令行标志，插件将在主操作之后执行。
 
-\item ReplaceAction: This replaces the original action Clang was going to perform. For example, if Clang was supposed to compile input code into an object file (the -c flag), it will execute the plugin's action instead once the plugin has been loaded.
+\item \texttt{ReplaceAction}: 这取代了Clang将要执行的原始动作，例如：Clang将输入代码编译到一个目标文件(\texttt{-c}标志)时，则执行插件的动作(而不是在插件加载时执行)。
 
-\item AddBefore/AfterMainAction: The original Clang action will still be executed, and the plugin action will be prepended/appended to it.
+\item \texttt{AddBefore/AfterMainAction}: 原来的Clang动作仍然会执行，并且插件动作会添加到它的前面或后面执行。
 \end{enumerate}
 
-Here, we will use the Cmdline action type:
+这里，我们将使用\texttt{Cmdline}操作类型:
 
 \begin{lstlisting}[style=styleCXX]
 struct TernaryConverterAction : public PluginASTAction {
@@ -278,7 +278,7 @@ struct TernaryConverterAction : public PluginASTAction {
 };
 \end{lstlisting}
 
-The ParseArgs member function, on the other hand, handles (frontend) command-line options specific to this plugin. In other words, you can create custom command-line flags for your plugin. In our case, we are going to create two flags: -no-detect-return and -no-detect-assignment. This allows us to decide whether we wish to detect potential ternary conversions regarding return statements or assignment statements, respectively:
+另一方面，\texttt{ParseArgs}成员函数处理(前端的)特定于这个插件的命令行选项。换句话说，可以为插件创建自定义命令行标志。我们的例子中，将创建两个标志:\texttt{-no-detect-return}和\texttt{-no-detect-assignment}。这允许我们决定是否希望检测返回语句或赋值语句的(潜在)三元转换:
 
 \begin{lstlisting}[style=styleCXX]
 struct TernaryConverterAction : public PluginASTAction {
@@ -297,13 +297,13 @@ struct TernaryConverterAction : public PluginASTAction {
 };
 \end{lstlisting}
 
-As shown in the preceding snippet, we created two boolean flags, NoReturn and NoAssignment, to carry our command-line options' values. An important thing to know is the return value for ParseArgs. Instead of returning if it parsed any custom flag, ParseArgs is actually returning if the plugin should continue its execution. Therefore, you should always return true in most cases.
+如上面的代码所示，我们创建了两个布尔标记，\texttt{NoReturn}和\texttt{NoAssignment}，来存储命令行选项的值。\texttt{ParseArgs}的返回值非常重要，\texttt{ParseArgs}实际上是在返回插件\textit{是否应该继续执行}，而不是返回\textit{是否解析了任何自定义标志}。因此，在大多数情况下，总是返回true。
 
-\item Now, we are going to talk about the content of CreateASTConsumer. This function will return an ASTConsumer object, which is the main body that we will put our custom logic in. Nevertheless, we are not going to directly implement an ASTConsumer. Instead, we are going to us the ASTConsumer object that was generated by ASTMatcher, which we introduced earlier in this chapter.
+\item 现在，我们将讨论\texttt{CreateASTConsumer}的内容。这个函数将返回一个\texttt{ASTConsumer}对象，它是自定义的逻辑主体。然而，我们不打算直接实现\texttt{ASTConsumer}。相反，我们\texttt{ASTConsumer}对象是由\textit{ASTMatcher}生成的(已经在本章的前面内容中介绍过)。
 
-Recall that two things are required to build a MatchFinder instance – the primary pattern matching driver in ASTMatcher (patterns written in ASTMatcher's own DSL) and a MatchCallback implementation. Let's separate our patterns and matcher callbacks into two categories: patterns for detecting potential ternary operator opportunities based on return statements and those for detecting assignment-statement-based opportunities.
+构建\texttt{MatchFinder}实例需要两个东西——\texttt{ASTMatcher}中的主要模式匹配驱动(用ASTMatcher自己的DSL编写的模式)和一个\texttt{MatchCallback}实现。我们将模式和匹配器回调分为两类:基于\texttt{return}语句检测可能的三元操作符的模式，以及\textit{基于赋值语句检测的模式}。
 
-Here is the skeleton for CreateASTConsumer:
+以下是\texttt{CreateASTConsumer}的框架:
 
 \begin{lstlisting}[style=styleCXX]
 using namespace ast_matchers;
@@ -339,16 +339,16 @@ TernaryConverterAction::CreateASTConsumer
 }
 \end{lstlisting}
 
-The preceding code created three additional unique\_ptr type member variables: one for holding MatchFinder and two MatchCallback ones for return-based and assignment-based patterns.
+前面的代码创建了三个\texttt{unique\_ptr}类型成员变量:一个用于存储\texttt{MatchFinder}，两个存储\texttt{MatchCallback}的用于基于返回和基于分配的模式。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Why Use unique\_ptr?]	\hspace*{0.7cm}The rationale behind using unique\_ptr to store those three objects – or storing those objects persistently – is because the ASTConsumer instance we created at the end of CreateASTConsumer (ASTFinder->newASTConsumer()) keeps references to those three objects. Thus, we need a way to keep them alive during the lifetime of the frontend.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=为啥使用unique\_ptr?]	\hspace*{0.7cm}使用\texttt{unique\_ptr}来存储这三个对象——或者持久化存储这些对象——背后的原理是因为，要在\texttt{CreateASTConsumer (ASTFinder->newASTConsumer())}末尾创建的\texttt{ASTConsumer}实例保留了对这三个对象的引用。因此，我们需要一种方法来保持它们在前端的生命周期内的存活性。
 \end{tcolorbox}
 
-In addition to that, we registered the pattern for traversal with MatchFinder by using MatchFinder::addMatcher, the traverse function, and MatchCallback instances. If you're not familiar with these APIs, feel free to check out the ASTMatcher section.
+除此之外，通过使用\texttt{MatchFinder::addMatcher}、\texttt{traverse}函数和\texttt{MatchCallback}实例，在\texttt{MatchFinder}中注册了遍历模式。如果不熟悉这些API，请会看关于\texttt{ASTMatcher}的部分章节。
 
-Now, we only need to compose the matching patterns and implement some callbacks to print out warning messages if there is a match – as the TODO comments suggested in the preceding snippet.
+现在，我们只需要组合匹配模式，并实现一些回调，以便在存在匹配时打印出警告消息——如前面代码中建议的\texttt{TODO}注释所示。
 
-\item Let's deal with the patterns first. The patterns we are looking for – both return-based and assignment-based patterns – have if-else statements (IfStmt) enclosed by a function (FunctionDecl for the entire function and CompoundStmt for the function body) in their outermost layout. Inside both, in the true branch and false branch of IfStmt, only one statement can exist. This structure can be illustrated like so:
+\item 先来处理模式。我们正在寻找的模式——基于返回和基于赋值的模式——在最外层的布局中有一个函数(\texttt{FunctionDecl}表示整个函数，\texttt{CompoundStmt}表示函数体)包围的\texttt{if-else}语句(\texttt{IfStmt})。两者内部，\texttt{IfStmt}的真分支和假分支中，只能存在一条语句。这个结构可以这样描述:
 
 \begin{tcolorbox}[colback=white,colframe=black]
 \tt
@@ -361,7 +361,7 @@ FunctionDecl \\
 \hspace*{0.9cm}|\_(false branch: contain only one return/assign statement)
 \end{tcolorbox}
 
-To convert this concept into ASTMatcher's DSL, here is the DSL code that's shared between the return-based and assignment-based patterns:
+为了将这个概念转换成ASTMatcher的DSL，下面是基于返回值和基于分配的模式之间共享的DSL代码:
 
 \begin{lstlisting}[style=styleCXX]
 functionDecl(
@@ -374,9 +374,9 @@ compoundStmt(hasAnySubstatement
 );
 \end{lstlisting}
 
-One important thing to remember is that when you're dealing with CompoundStmt, you should always use quantifier directives such as hasAnySubstatement to match its body statements.
+要记住，当处理\texttt{CompoundStmt}时，应该使用限定指令，比如：让\texttt{hasAnySubstatement}来匹配它的主体语句。
 
-We are going to use the previous TODO comments to customize for either returnbased or assignment-based situations. Let's use subpattern variables to replace those TODO comments and put the preceding code into another function:
+我们将使用前面的\texttt{TODO}注释来定制这些基于返回值或基于分配的情况。来使用子模式变量来替换那些\texttt{TODO}注释，并把前面的代码放到另一个函数中:
 
 \begin{lstlisting}[style=styleCXX]
 StatementMatcher
@@ -390,7 +390,7 @@ buildIfStmtMatcher(StatementMatcher truePattern,
 }
 \end{lstlisting}
 
-\item For return-based patterns, the subpatterns for both the if-else branches mentioned in the previous step are identical and simple. We're also using a separate function to create this pattern:
+\item 对于基于返回值的模式，相对于上一步中提到的两个\texttt{if-else}分支的子模式是稍微复杂一些。这里，我们也使用了一个单独的函数来创建这个模式:
 
 \begin{lstlisting}[style=styleCXX]
 StatementMatcher buildReturnMatcher() {
@@ -401,9 +401,9 @@ StatementMatcher buildReturnMatcher() {
 }
 \end{lstlisting}
 
-As shown in the preceding snippet, we are using the statementCountIs directive to match the code blocks with only one statement. Also, we specified that we don't want an empty return via  hasReturnValue(…). The argument for hasReturnValue is necessary since the latter takes at least one argument, but since we don't care what type of node it is, we are using expr() as some sort of wildcard pattern.
+如上面的代码所示，我们使用\texttt{statementCountIs}指令将代码块与只有一条语句匹配。此外，还通过\texttt{hasReturnValue(…)}指定了不为空的返回值。\texttt{hasReturnValue}参数是必要的，因为后者至少接受一个参数，但由于我们不关心什么类型的节点，所以使用\texttt{expr()}作为某种通配符模式。
 
-For assignment-based patterns, things get a little bit complicated: we don't just want to match a single assignment statement (modeled by the BinaryOperator class) in both branches – the LHS of those assignments need to be DeclRefExpr expressions that point to the same Decl instance. Unfortunately, we are not able to express all these predicates using ASTMatch's DSL. What we can do, however, is push off some of those checks into MatchCallback later, and only use DSL directives to check the shape of our desired patterns:
+对于基于赋值的模式，事情变得有点复杂:我们不只是想在两个分支中匹配单个赋值语句(由\texttt{BinaryOperator}类建模)——这些赋值的LHS需要是指向同一个\texttt{Decl}实例的\texttt{DeclRefExpr}表达式。不幸的是，我们不能使用ASTMatch的DSL来表达这些谓词。然而，可以将一些检查推到\texttt{MatchCallback}中，并且只使用DSL指令来检查我们想要的模式\textit{形状}:
 
 \begin{lstlisting}[style=styleCXX]
 StatementMatcher buildAssignmentMatcher() {
@@ -416,9 +416,9 @@ StatementMatcher buildAssignmentMatcher() {
 }
 \end{lstlisting}
 
-\item Now that we've completed the skeleton for our patterns, it's time to implement MatchCallback. There are two things we are going to do in MatchCallback::run. First, for our assignment-based pattern, we need to check if the LHS' DeclRefExpr of those matched assignment candidates is pointing to the same Decl. Second, we want to print out messages that help users rewrite if-else branches as ternary operators. In other words, we need location information from some of the matched AST nodes.
+\item 现在我们已经完成了模式的框架，是时候来实现\texttt{MatchCallback}了。在\texttt{MatchCallback::run}中我们会做两件事。首先，对于基于分配的模式，检查那些匹配的分配候选LHS的\texttt{DeclRefExpr}是否指向相同的\texttt{Decl}。其次，打印出帮助用户将\texttt{if-else}分支重写为三元运算符的消息。换句话说，我们需要一些匹配的AST节点的位置信息。
 
-Let's solve the first task using the AST node binding technique. The plan is to bind the candidate assignment's LHS DeclRefExpr nodes so that we can retrieve them from MatchCallback::run later and perform further checks on their Decl nodes. Let's change buildAssignmentMatch into this:
+让我们使用\textit{AST节点绑定技术}来解决第一个任务。计划是绑定候选赋值的LHS \texttt{DeclRefExpr}节点，这样就可以从\texttt{MatchCallback::run}中对它们进行检索，并对它们的\texttt{Decl}节点执行进一步的检查。我们来对\texttt{buildAssignmentMatch}进行修改:
 
 \begin{lstlisting}[style=styleCXX]
 StatementMatcher buildAssignmentMatcher() {
@@ -431,9 +431,9 @@ StatementMatcher buildAssignmentMatcher() {
 }
 \end{lstlisting}
 
-Though the preceding code seems straightforward, there is one problem in this binding scheme: in both branches, DeclRefExpr is bound to the same name, meaning that the AST node that occurred later will overwrite the previously bound node. So, eventually, we won't get DeclRefExpr nodes from both branches as we previously planned.
+尽管前面的代码看起来很简单，但是在这个绑定方案中有一个问题:在两个分支中，\texttt{DeclRefExpr}的绑定使用了相同的名称，这意味着后面出现的AST节点将覆盖之前绑定的节点。因此，我们不会像之前计划的那样从两个分支获得\texttt{DeclRefExpr}节点。
 
-Therefore, let's use a different tags for DeclRefExpr that match from both branches: dest.true for the true branch and dest.false for the false branch. Let's tweak the preceding code to reflect this strategy:
+因此，这里为\texttt{DeclRefExpr}使用一个不同的标签来匹配两个分支:\texttt{dest.true}表示真分支，\texttt{dest.false}表示假分支。让我们调整前面的代码来反映这个策略:
 
 \begin{lstlisting}[style=styleCXX]
 StatementMatcher buildAssignmentMatcher(StringRef Suffix)
@@ -448,9 +448,9 @@ StatementMatcher buildAssignmentMatcher(StringRef Suffix)
 }
 \end{lstlisting}
 
-Later, when we call buildAssignmentMatcher, we will pass different suffixes for the different branches – either .true or .false.
+当调用\texttt{buildAssignmentMatcher}时，我们将为不同的分支传递不同的后缀——或者是\texttt{.true}或者\texttt{.false}。
 
-Finally, we must retrieve the bound nodes in MatchCallback::run. Here, we are creating different MatchCallback subclasses for returnbased and assignment-based scenarios – MatchReturnCallback and MatchAssignmentCallback, respectively. Here is a part of the code in MatchAssignmentCallback::run:
+最后，必须在\texttt{MatchCallback::run}中检索绑定的节点。这里，我们为基于返回和基于分配的场景创建了不同的\texttt{MatchCallback}子类——分别是\texttt{MatchReturnCallback}和\texttt{MatchAssi\\gnmentCallback}。下面是\texttt{MatchAssignmentCallback::run}中的部分代码:
 
 \begin{lstlisting}[style=styleCXX]
 void
@@ -469,9 +469,9 @@ override {
 }
 \end{lstlisting}
 
-We are going to solve the second task – printing useful information to users – in the next step.
+我们将在下一步解决第二个任务——打印有用的信息给用户。
 
-\item To print useful information – including which part of the code can be converted into a ternary operator, and how can you build that ternary operator – we need to retrieve some AST nodes from the matched patterns before getting their source location information. For this, we will use some node binding tricks, as we did in the previous step. This time, we will modify all the pattern building functions; that is, buildIfStmtMatcher, buildReturnMatcher, and buildAssignmentMatcher:
+\item 要打印有用的信息——包括代码的哪一部分可以转换成三元运算符，以及如何构建三元运算符——需要在获取其源位置信息之前，从匹配的模式中检索一些AST节点。为此，我们将使用一些节点绑定技巧。这一次，我们将修改所有的模式构建功能，也就是\texttt{buildIfStmtMatcher}、\texttt{buildReturnMatcher}和\texttt{builassignmentmatcher}:
 
 \begin{lstlisting}[style=styleCXX]
 StatementMatcher
@@ -486,7 +486,7 @@ buildIfStmtMatcher(StatementMatcher truePattern,
 }
 \end{lstlisting}
 
-Here, we bound the matched IfStmt since we want to tell our users where the potential places that can be converted into ternary operators are:
+这里，对匹配的\texttt{IfStmt}进行了绑定，因为我们想告诉用户，哪些地方可以转换为三元操作符:
 
 \begin{lstlisting}[style=styleCXX]
 StatementMatcher buildReturnMatcher(StringRef Suffix) {
@@ -512,9 +512,9 @@ StatementMatcher buildAssignmentMatcher(StringRef Suffix)
 }
 \end{lstlisting}
 
-We used the same node binding tricks here that we did in the preceding snippet. After this, we can retrieve those bound nodes from MatchCallback::run and print out the message using the SourceLocation information that's attached to those nodes.
+在这里使用的节点绑定技巧与前面的代码中使用的相同。在此之后，我们可以从\texttt{MatchCall\\back::run}中检索那些绑定的节点，并使用这些节点的\texttt{SourceLocation}信息进行打印。
 
-We are going to use Clang's diagnostic framework to print out those messages here (feel free to read the Printing diagnostic messages section again if you're not familiar with it). And since the prospective message formats are not existing ones in Clang's code base, we are going to create our own diagnostic ID via DiagnosticsEngine::getCustomDiagID(…). Here is what we will do in MatchAssignmentCallback::run (we will only demo MatchAssignmentCallback here since MatchReturnCallback is similar):
+我们将在这里使用Clang的诊断框架来打印这些消息。由于预期的消息格式在Clang的代码库中并不存在，我们将通过\texttt{DiagnosticsEngine::getCustomDiagID(…)}创建自己的诊断ID。下面是我们在\texttt{MatchAssignmentCallback::run}中做的事情(因为\texttt{MatchReturnCallback}是类似的，所以这里只演示\texttt{MatchAssignmentCallback}):
 
 \begin{lstlisting}[style=styleCXX]
 void
@@ -538,7 +538,7 @@ override {
 }
 \end{lstlisting}
 
-Combining this with bound node retrievals, here is how we are going to print the messages:
+结合绑定节点检索，下面是如何打印消息:
 
 \begin{lstlisting}[style=styleCXX]
 void
@@ -565,7 +565,7 @@ override {
 }
 \end{lstlisting}
 
-\item Finally, go back to CreateASTConsumer. Here is how everything is pieced together:
+\item 最后，返回\texttt{CreateASTConsumer}。下面展示了，是所有内容是如何拼凑起来的:
 
 \begin{lstlisting}[style=styleCXX]
 std::unique_ptr<ASTConsumer>
@@ -601,9 +601,9 @@ CompilerInstance &CI, StringRef InFile) {
 }
 \end{lstlisting}
 
-And that wraps up all the things we need to do!
+这就是我们要做的所有事情!
 
-\item Last but not least, this is the command for running our plugin:
+\item 最后，运行插件的命令:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -fsyntax-only -fplugin=/path/to/TernaryConverter.
@@ -611,9 +611,9 @@ so -Xclang -plugin -Xclang ternary-converter \
   test.c
 \end{tcblisting}
 
-You will get an output similar to the one you saw in the Project overview section.
+将得到一个类似于在\textbf{项目概述}中看到的输出。
 
-To use plugin-specific flags, such as -no-detect-return and -no-detectassignment in this project, please add the command-line options highlighted here:
+要在这个项目中使用插件特定的标志，比如\texttt{-no-detect-return}和\texttt{-no-detectassignment}，请在这里显式添加命令行选项:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -fsyntax-only -fplugin=/path/to/TernaryConverter.
@@ -623,11 +623,11 @@ so -Xclang -plugin -Xclang ternary-converter \
     test.c
 \end{tcblisting}
 
-To be more specific, the first highlighted argument is in -plugin-arg-<plugin name> format.
+更具体地说，要以\texttt{-plugin-arg-<plugin name>}格式添加第一个高亮显示的参数。
 
 \end{enumerate}
 
-In this section, you learned how to write an AST plugin that sends messages to users whenever there is an if-else statement that can be converted into a ternary operator. You did this by leveraging all the techniques that were covered in this chapter; that is, Clang AST's in-memory representation, ASTMatcher, and the diagnostic framework, to name a few
+本节中，了解了如何编写AST插件，该插件在有\texttt{if-else}语句时向用户发送消息，表明该语句可以转换为三元操作符。可以利用本章所介绍的所有技术来做其他的事情，例如：Clang AST的内存表示、ASTMatcher和诊断框架。
 
 
 
