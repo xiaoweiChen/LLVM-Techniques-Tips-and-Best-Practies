@@ -1,55 +1,55 @@
 
-The Clang project contains not just the clang executable. It also provides interfaces for developers to extend its tools, as well as to export its functionalities as libraries. In this section, we will give you an overview of all these options. Some of them will be covered in later chapters.
+Clang项目不仅包含\texttt{clang}可执行文件，还为开发人员提供接口来扩展其工具，并可以将其功能导出为库。本节中，我们将概述这些选项。其中的一些将在后面的章节中进行讨论。
 
-There are currently three kinds of tooling and extension options available in Clang: Clang plugins, libTooling, and Clang Tools. To explain their differences and provide more background knowledge when we talk about Clang extensions, we need to start from an important data type first: the clang::FrontendAction class.
+Clang中目前有三种工具和扩展选项:\textbf{Clang插件}、\textbf{libTooling}和\textbf{Clang工具}。在讨论Clang扩展时，为了解释它们之间的区别，并提供更多的背景知识，我们需要首先从一个重要的数据类型开始:\texttt{clang::FrontendAction}类。
 
-\subsubsubsection{5.3.1\hspace{0.2cm}The FrontendAction class}
+\subsubsubsection{5.3.1\hspace{0.2cm}FrontendAction类}
 
-In the Learning Clang's subsystems and their roles section, we went through a variety of Clang's frontend components, such as the preprocessor and Sema, to name a few. Many of these important components are encapsulated by a single data type, called FrontendAction. A FrontendAction instance can be treated as a single task running inside the frontend. It provides a unified interface for the task to consume and interact with various resources, such as input source files and ASTs, which is similar to the role of an LLVM Pass from this perspective (an LLVM Pass provides a unified interface to process LLVM IR). However, there are some significant differences with an LLVM Pass:
-
-\begin{itemize}
-\item Not all of the frontend components are encapsulated into a FrontendAction, such as the parser and Sema. They are standalone components that generate materials (for example, the AST) for other FrontendActions to run.
-
-\item Except for a few scenarios (the Clang plugin is one of them), a Clang compilation instance rarely runs multiple FrontendActions. Normally, only one FrontendAction will be executed.
-\end{itemize}
-
-Generally speaking, a FrontendAction describes the task to be done at one or two important places in the frontend. This explains why it's so important for tooling or extension development – we're basically building our logic into a FrontendAction (one of FrontendAction's derived classes, to be more precise) instance to control and customize the behavior of a normal Clang compilation.
-
-To give you a feel for the FrontendAction module, here are some of its important APIs:
+了解\textit{Clang的子系统及其扮演的角色}时，介绍了Clang的各种前端组件，例如：预处理器和Sema等。这些组件都封装在\texttt{FrontendAction}数据类型中。\texttt{FrontendAction}实例可以视为在前端内部运行的单个任务，为任务提供了统一的接口与各种资源(如输入源文件和AST)进行交互，从这个角度来看，其角色类似于\textbf{LLVM Pass} (LLVM Pass提供了统一的接口来处理LLVM IR)。然而，这个数据类型与LLVM Pass也有一些显著的区别:
 
 \begin{itemize}
-\item FrontendAction::BeginSourceFileAction(…)/EndSourceFileAction(…): These are callbacks that derived classes can override to perform actions right before processing a source file and once it has been processed, respectively
+\item 并非所有的前端组件都封装到\texttt{FrontendAction}中，比如：解析器和Sema都是独立的组件，为其他的\texttt{ASTFrontendAction}生成资料(例如，AST)。
 
-\item Except for a few scenarios (the Clang plugin is one of them), a Clang compilation instance rarely runs multiple FrontendActions. Normally, only one FrontendAction will be executed.
-
-\item FrontendAction::CreateASTConsumer(…): This is a factory function that's used to create an ASTConsumer instance, which is a group of callbacks that will be invoked by the frontend when it's traversing different parts of the AST (for example, a callback to be called when the frontend encounters a group of declarations). Note that while the majority of FrontendActions work after the AST has been generated, the AST might not be generated at all. This may happen if the user only wants to run the preprocessor, for example (such as to dump the preprocessed content using Clang's -E command-line option). Thus, you don't always need to implement this function in your custom FrontendAction.
+\item 除了一些场景(其中之一是Clang插件)，Clang编译实例很少运行多个FrontendAction。通常，只会执行一个\texttt{FrontendAction}。
 \end{itemize}
 
-Again, normally, you won't derive your class directly from FrontendAction, but understanding FrontendAction's internal role in Clang and its interfaces can give you more material to work with when it comes to tooling or plugin development.
+通常，\texttt{FrontendAction}所要描述的是在前端的一个或两个重要位置要完成的任务。这解释了为什么其对工具或扩展开发非常重要——这就需要将我们的逻辑构建到一个\texttt{FrontendAction}(更准确地说，是\texttt{FrontendAction}的派生类)实例中来控制和定制一项Clang编译的行为。
 
-\subsubsubsection{5.3.2\hspace{0.2cm}Clang plugins}
+为了让了解\texttt{FrontendAction}模块，以下是它的一些重要API:
 
-A Clang plugin allows you to dynamically register a new FrontendAction (more specifically, an ASTFrontendAction) that can process the AST either before or after, or even replace, the main action of clang. A real-world example can be found in the Chromium project, in which they use Clang plugins to impose some Chromium-specific rules and make sure their code base is free from any non-ideal syntax. For example, one of the tasks is checking if the virtual keyword has been placed on methods that should be virtual.
+\begin{itemize}
+\item \texttt{FrontendAction::BeginSourceFileAction(…)/EndSourceFileAction(…)}: 这些回调是派生类可以重写的，分别在处理源文件之前和处理完源文件之后需要执行的操作。 
 
-A plugin can be easily loaded into a normal clang by using simple command-line options:
+\item \texttt{FrontendAction::ExecuteAction(…)}: 这个回调描述了\texttt{FrontendAction}的主要动作。注意，虽然不阻止你直接重写这个方法，但许多\texttt{FrontendAction}派生类已经提供了更简单的接口来描述一些常见的任务，例如：如果要处理一个AST，应该继承\texttt{ASTFrontendAction}并利用其基础结构。
+
+\item \texttt{FrontendAction::CreateASTConsumer(…)}: 用于创建\texttt{ASTConsumer}实例的工厂函数，是一组回调函数，当其遍历AST的不同部分时，将在前端调用(当前端遇到一组声明时，将调用回调函数)。注意，虽然大多数\texttt{FrontendAction}在生成AST之后工作，但AST可能不会生成，例如：如果用户只想运行预处理程序(例如使用Clang的\texttt{-E}命令行选项转储预处理后的内容)，可能会发生这种情况。因此，不一定要在自定义的\texttt{FrontendAction}中实现这个函数。
+\end{itemize}
+
+通常情况下，不会直接从\texttt{FrontendAction}派生，但是理解\texttt{FrontendAction}在Clang中的内部角色和接口，在使用工具或插件开发，给你带来更多的思考。
+
+\subsubsubsection{5.3.2\hspace{0.2cm}Clang插件}
+
+Clang插件可以动态注册新的\texttt{FrontendAction}(更确切地说是\texttt{ASTFrontendAction})，可以在\texttt{clang}的主动作之前或之后处理AST，甚至替换。在\textbf{Chromium}项目中可以找到实际的例子，他们使用Clang插件来强加一些特定于Chromium的规则，并确保他们的代码库没有任何非理想化的语法。例如，其中一个任务是检查\texttt{virtual}关键字是否放在了虚方法上。
+
+通过使用简单的命令行选项，插件可以很容易地加载到\texttt{clang}中:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -fplugin=/path/to/MyPlugin.so … foo.cpp
 \end{tcblisting}
 
-This is really useful if you want to customize the compilation but have no control over the clang executable (that is, you can't use a modified version of clang). In addition, using the Clang plugin allows you to integrate with the build system more tightly; for example, if you want to rerun your logic once the source files or even arbitrary build dependencies have been modified. Since the Clang plugin is still using clang as the driver and modern build systems are pretty good at resolving normal compilation command dependencies, this can be done by making a few compile flag tweaks.
+如果想定制编译，但无法控制\texttt{clang}可执行文件(也就是说，您不能使用修改过的\texttt{clang}版本)，那么这将非常有用。此外，使用Clang插件可以更紧密地与构建系统集成，例如：在修改了源文件或任意构建依赖项后，希望重新运行逻辑。因为Clang插件仍然使用\texttt{clang}作为驱动，而且现代的构建系统在解析普通的编译命令依赖关系方面做得很好，这可以通过调整一些编译标志来实现。
 
-However, the biggest downside of using the Clang plugin is its API issue. In theory, you can load and run your plugin in any clang executable, but only if the C++ APIs (and the ABI) are used by your plugin and the clang executable matches it. Unfortunately, for now, Clang (and also the whole LLVM project) has no intention to make any of its C++ APIs stable. In other words, to take the safest path, you need to make sure both your plugin and clang are using the exact same (major) version of LLVM. This issue makes the Clang plugin pretty hard to be released standalone.
+然而，使用Clang插件最大的缺点是它的\textbf{API问题}。理论上，可以在任何\texttt{clang}可执行文件中加载和运行插件，但前提是插件使用了C++ API(和ABI)，并且\texttt{clang}可执行文件与之匹配。不幸的是，到目前为止，Clang(以及整个LLVM项目)并没有打算提供稳定的C++ API。换句话说，为了选择最安全的方式，需要确保插件和\texttt{clang}使用的是完全相同的LLVM(主)版本。这个问题使得Clang插件很难独立发布。
 
-We will look at this in more detail in Chapter 7, Handling AST.
+我们将在第7章更详细地讨论这个问题。
 
-\subsubsubsection{5.3.3\hspace{0.2cm}LibTooling and Clang Tools}
+\subsubsubsection{5.3.3\hspace{0.2cm}libTooling和Clang工具}
 
-LibTooling is a library that provides features for building standalone tools on top of Clang's techniques. You can use it like a normal library in your project, without having any dependencies on the clang executable. Also, the APIs are designed to be more high-level so that you don't need to deal with many of Clang's internal details, making it more friendly to non-Clang developers.
+\textbf{LibTooling}是一个库，提供了在Clang技术之上构建\textit{独立工具}的特性。可以像在项目中使用普通库一样使用它，而不需要依赖于\texttt{clang}可执行文件。此外，API设计的更高层，这样就不需要处理很多Clang的内部细节，这使得它对非Clang开发人员更友好。
 
-Language server is one of the most famous use cases of libTooling. A Language server is launched as a daemon process and accepts requests from editors or IDEs. These requests can be as simple as syntax checking a code snippet or complicated tasks such as code completions. While a Language server does not need to compile the incoming source code into native code as normal compilers do, it needs a way to parse and analyze that code, which is non-trivial to build from scratch. libTooling avoids the need to recreate the wheels in this case by taking Clang's techniques off-the-shelf and providing an easier interface for Language server developers.
+\textbf{语言服务器}是libTooling最著名的用例。语言服务器作为守护进程启动，并接受来自编辑器或IDE的请求。这些请求可以像检查代码片段的语法那样简单，也可以像代码完成那样复杂。虽然语言服务器不需要像普通编译器那样将传入的源代码编译成原生代码，但需要一种方法来解析和分析代码，这对于从头构建来说并不容易。libTooling通过Clang现成的技术，为语言服务器开发人员提供了更简单的接口，从而避免了在这种情况下重新创建轮子的必要。
 
-To give you a more concrete idea of how libTooling differs from the Clang plugin, here is a (simplified) code snippet for executing a custom ASTFrontendAction called MyCustomAction:
+为了更具体地了解libTooling与Clang插件的区别，这里有一个(简化的)代码片段，用于执行自定义\texttt{ASTFrontendAction}类\texttt{MyCustomAction}:
 
 \begin{lstlisting}[style=styleCXX]
 int main(int argc, char** argv) {
@@ -60,13 +60,13 @@ int main(int argc, char** argv) {
 }
 \end{lstlisting}
 
-As shown in the previous code, you can't just embed this code into any code base. libTooling also provides lots of nice utilities, such as CommonOptionsParser, which parses textual command-line options and transforms them into Clang options for you.
+如前面代码所示，不能将此代码嵌入任何代码库。libTooling还提供了许多不错的工具，如：\texttt{CommonOptionsParser}用于解析文本命令行选项，并将其转换为Clang选项。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=libTooling's API Stability]
-\hspace*{0.7cm}Unfortunately, libTooling doesn't provide stable C++ APIs either. Nevertheless, this isn't a problem since you have full control over what LLVM version you're using.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=libTooling的API稳定性]
+\hspace*{0.7cm}不幸的是，libTooling也不提供稳定的C++ API。然而，这并不是什么问题，因为这里可以完全控制所使用的LLVM版本。
 \end{tcolorbox}
 
-Last but not least, Clang Tools is a collection of utility programs build on top of libTooling. You can think of it as the command-line tool version of libTooling in that it provides some common functionalities. For example, you can use clang-refactor to refactor the code. This includes renaming a variable, as shown in the following code:
+最后但并非最不重要的是，\textbf{Clang工具}是一组构建在libTooling上的实用程序。因为提供了一些常见的功能，所以可以看作为libTooling的命令行工具版本。例如，可以使用\texttt{clang-refactor}来重构代码。这包括重命名变量，如下代码所示:
 
 \begin{lstlisting}[style=styleCXX]
 // In foo.cpp…
@@ -79,7 +79,7 @@ float foo(Location *loc) {
 }
 \end{lstlisting}
 
-If we want to rename the Lat member variable in the Location struct Latitude, we can use the following command:
+如果想将\texttt{Location}结构体中的\texttt{Lat}成员变量重命名为\texttt{Latitude}，可以使用以下命令:
 
 \begin{tcblisting}{commandshell={}}
 $ clang-refactor --selection="foo.cpp:1:1-10:2" \
@@ -88,11 +88,11 @@ $ clang-refactor --selection="foo.cpp:1:1-10:2" \
     foo.cpp
 \end{tcblisting}
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Building clang-refactor]
-\hspace*{0.7cm}Be sure to follow the instructions at the beginning of this chapter to include clang-tools-extra in the list for the LLVM\_ENABLE\_PROJECTS CMake variable. By doing this, you'll be able to build clang-refactor using the ninja clang-refactor command.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=构建clang-refactor]
+\hspace*{0.7cm}要遵循本章开头的声明，在\texttt{LLVM\_ENABLE\_PROJECTS}的列表中包含\texttt{clang-tools-extra}。这样，就能使用\texttt{ninja clang-refactor}命令来构建\texttt{clang-refactor}了。
 \end{tcolorbox}
 
-You will get the following output:
+会得到以下输出:
 
 \begin{lstlisting}[style=styleCXX]
 // In foo.cpp…
@@ -105,7 +105,7 @@ float foo(Location *loc) {
 }
 \end{lstlisting}
 
-This is done by the refactoring framework built inside libTooling; clang-refactor merely provides a command-line interface for it.
+这是由libTooling内部构建的重构框架完成的，\texttt{clang-refactor}仅提供了一个命令行接口。
 
 
 

@@ -1,18 +1,18 @@
-Clang is LLVM's official frontend for C-family programming languages, including C, C++, and Objective-C. It processes the input source code (parsing, type checking, and semantic reasoning, to name a few) and generates equivalent LLVM IR code, which is then taken over by other LLVM subsystems to perform optimization and native code generation. Many C-like dialects or language extensions also find Clang easy to host their implementations. For example, Clang provides official support for OpenCL, OpenMP, and CUDA C/C++. In addition to normal frontend jobs, Clang has been evolving to partition its functionalities into libraries and modules so that developers can use them to create all kinds of tools related to source code processing; for example, code refactoring, code formatting, and syntax highlighting. Learning Clang development can not only bring you more engagement into the LLVM project but also open up a wide range of possibilities for creating powerful applications and tools.
+Clang是LLVM的C族编程语言的官方前端，包括C、C++和Objective-C。处理输入源代码(解析、类型检查和语义推理等)，并生成等效的LLVM IR代码，然后过其他LLVM子系统，执行优化和/或本地代码生成。许多类似C语言的方言或语言扩展也开始使用Clang托管它们的实现，例如：Clang为OpenCL、OpenMP和CUDA C/C++提供官方支持。除了常规的前端工作外，Clang一直在发展，将其功能划分为库和模块，这样开发人员可以使用它们来创建各种与源代码处理相关的工具，例如：代码重构、代码格式化和语法高亮显示。学习Clang开发不仅可以让您更多地参与到LLVM项目中，还可以为创建功能强大的应用程序和工具提供了更多的可能性。
 
-Unlike LLVM, which arranges most of its tasks into a single pipeline (that is, PassManager) and runs them sequentially, there is more diversity in how Clang organizes its subcomponents. In this chapter, we will show you a clear picture of how Clang's important subsystems are organized, what their roles are, and which part of the code base you should be looking for.
+LLVM将其大部分任务安排在管道(即PassManager)中顺序执行。与LLVM不同，Clang在组织子组件的方式上更加多样化。在本章中，将向您展示Clang的系统是如何组织的，角色分别是什么，以及其在源码的哪一部分。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Terminology]
-\hspace*{0.7cm}From this chapter through to the rest of this book, we will be using Clang (which starts with an uppercase C and a Minion Pro font face) to refer to the project and its techniques as a whole. Whenever we use clang (all in lowercase with a Courier font face), we are referring to the executable program.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=术语]
+\hspace*{0.7cm}这一章到本书的其余部分，将使用Clang(以大写C和Minion Pro字体开头)作为整体来引用项目和使用到的技术。当使用clang时(小写，Courier字体)，则指的是可执行程序。
 \end{tcolorbox}
 
-In this chapter, we will cover the following main topics:
+本章中，我们将讨论以下内容:
 
 \begin{itemize}
 \item 了解Clange的子系统及其作用
 \item 探索Clang工具的功能和扩展选项
 \end{itemize}
 
-By the end of this chapter, you will have a roadmap of this system so that you can kickstart your own projects and have some gravity for later chapters related to Clang development.
+本章结束时，您将对这个系统的路线图有了一定的了解，这样您就可以启动您感兴趣的项目，并为以后有关Clang开发的提供一些参考。
 
 
