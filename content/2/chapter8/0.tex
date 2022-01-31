@@ -1,13 +1,13 @@
-In the previous chapter, we learned how to process Clang's AST – one of the most common formats for analyzing programs. In addition, we learned how to develop an AST plugin, which is an easy way to insert custom logic into the Clang compilation pipeline. This knowledge will help you augment your skillset for tasks such as source code linting or finding potential security vulnerabilities.
+前一章中，我们了解了如何处理Clang的AST——一种最常见的程序分析格式。此外，我们还了解了如何开发AST插件，这是一种将自定义逻辑插入到Clang编译管道的简单方法。这些知识将增强，执行诸如源代码检测或发现潜在安全漏洞等任务的技能。
 
-In this chapter, we are ascending from specific subsystems and looking at the bigger picture – the compiler driver and toolchain that orchestrate, configure, and run individual LLVM and Clang components according to users' needs. More specifically, we will focus on how to add new compiler flags and how to create a custom toolchain. As we mentioned in Chapter 5, Exploring Clang's Architecture, compiler drivers and toolchains are often under-appreciated and have long been ignored. However, without these two important pieces of software, compilers will become extremely difficult to use. For example, users need to pass over 10 different compiler flags merely to build a simple hello world program, owing to the lack of flag translation. Users also need to run at least three different kinds of tools in order to create an executable to run, since there are no drivers or toolchains to help us invoke assemblers and linkers. In this chapter, you will learn how compiler drivers and toolchains work in Clang and how to customize them, which is extremely useful if you want to support Clang on a new operating system or architecture.
+本章中，我们将从特定的子系统开始，并着眼于更大的场景——编译器\textbf{驱动}和\textbf{工具链}，根据用户的需求编排、配置和运行独立的LLVM和Clang组件。更具体地说，我们将关注如何添加新的编译器标志，以及如何创建自定义工具链。正如在第5章提到的，编译器驱动和工具链经常被低估，并长期被忽视。然而，如果没有这两个重要的工具，编译器将变得极其难以使用，例如：因为缺少标志转译，用户需要传递10个不同的编译器标志，仅仅是为了构建一个简单的hello world程序。因为没有驱动程序或工具链来调用\textit{汇编器}和\textit{链接器}，用户还需要运行至少三种不同类型的工具才能创建一个可执行程序来运行。本章中，将了解编译器驱动和工具链如何在Clang中工作，以及如何定制使用，如果想在新的操作系统或架构上支持Clang，这章的知识将非常有用。
 
-In this section, we will cover the following topics:
+我们将讨论以下内容：
 
 \begin{itemize}
-\item Understanding drivers and toolchains in Clang
-\item Adding custom driver flags
-\item Adding a custom toolchain
+\item Clang中的驱动程序和工具链
+\item 添加自定义驱动标志
+\item 添加自定义工具链
 \end{itemize}
 
 

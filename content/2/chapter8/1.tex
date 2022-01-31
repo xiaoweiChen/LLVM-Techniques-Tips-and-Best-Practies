@@ -1,10 +1,10 @@
-In this chapter, we are still relying on the clang executable, so make sure you build it, like this:
+本章中，我们仍然依赖于\texttt{clang}可执行文件，请先构建它:
 
 \begin{tcblisting}{commandshell={}}
 $ ninja clang
 \end{tcblisting}
 
-Since we are working with a driver, as we mentioned in Chapter 5, Exploring Clang's Architecture, you can use the -\#\#\# command-line option to print out the frontend flags that have been translated from the driver, like so:
+因为使用了驱动，所以可以使用\texttt{-\#\#\#}命令行选项来打印从驱动程序中转译出来的前端标志：
 
 \begin{tcblisting}{commandshell={}}
 $ clang++ -### -std=c++11 -Wall hello_world.cpp -o hello_world
@@ -17,8 +17,11 @@ $ clang++ -### -std=c++11 -Wall hello_world.cpp -o hello_world
 Developer/CommandLineTools/usr/lib/clang/12.0.0" "-isysroot"
 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk" "-I/
 usr/local/include" "-stdlib=libc++" … "-Wall" "-Wno-reorderinit-list" 
+\end{tcblisting}
+\begin{tcblisting}{commandshell={}}
 "-Wno-implicit-int-float-conversion" "-Wno-c99-
-designator" … "-std=c++11" "-fdeprecated-macro" "-fdebugcompilation-dir" 
+designator" … "-std=c++11" "-fdeprecated-macro"
+ "-fdebugcompilation-dir" 
 "/Users/Rem" "-ferror-limit" "19"
 "-fmessage-length" "87" "-stack-protector" "1" "-fstackcheck" 
 "-mdarwin-stkchk-strong-link" … "-fexceptions" …
@@ -26,19 +29,19 @@ designator" … "-std=c++11" "-fdeprecated-macro" "-fdebugcompilation-dir"
 to/temp/hello_world-dEadBeEf.o" "-x" "c++" "hello_world.cpp"…
 \end{tcblisting}
 
-Using this flag will not run the rest of the compilation but merely execute the driver and toolchain. This makes it a good way to verify and debug specific flags and check they are correctly propagated from the driver to the frontend.
+使用这个标志将不会运行其余的编译，而只是执行驱动程序和工具链。这个方法可以验证和调试特定标志，并检查它们是否正确地从驱动传播到前端。
 
-Last but not least, in the last section of this chapter, Adding a custom toolchain, we will work on a project that can only run on Linux systems. Also, please install OpenSSL beforehand. It is usually available as a package in most Linux systems. For example, on Ubuntu, you can use the following command to install it:
+最后，本章的最后一节，添加自定义工具链。我们将处理一个只能在Linux系统上运行的项目。另外，请提前安装OpenSSL。在大多数Linux系统中，它通常是一个包。例如，在Ubuntu上，可以使用以下命令来安装:
 
 \begin{tcblisting}{commandshell={}}
 $ sudo apt install openssl
 \end{tcblisting}
 
-We are only using the command-line utility, so there's no need to install any OpenSSL libraries that are normally used for development.
+我们只使用命令行工具，所以不需要安装任何通常用于开发的OpenSSL库。
 
-The code that will be used in this chapter can be found here: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter08}.
+本章的代码连接: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clangand-Middle-End-Libraries/tree/main/Chapter08}.
 
-In the first section of this chapter, we will provide a brief introduction to Clang's driver and toolchain infrastructure.
+本章的第一节中，我们将简要介绍Clang的驱动和工具链基础结构。
 
 
 

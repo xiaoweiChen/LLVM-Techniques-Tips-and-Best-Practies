@@ -1,35 +1,35 @@
 
-In the previous section, we learned how to add custom flags for the driver in Clang and learned how the driver translated them into flags that are accepted by the frontend. In this section, we are going to talk about the toolchain – an important module inside the driver that helps it adapt to different platforms.
+上一节中，我们了解了如何在Clang中为驱动添加自定义标志，并了解了驱动如何将它们转换为前端接受的标志。本节中，我们将讨论工具链——驱动内部的一个重要模块，它能帮助驱动程序适应不同的平台。
 
-Recall that in the first section of this chapter, Understanding drivers and toolchains in Clang, we showed the relationships between driver and toolchains in Figure 8.1: the driver chooses a proper toolchain based on the target platform before leveraging its knowledge to do the following:
+记得在本章的第一部分，在图8.1中展示了驱动和工具链之间的关系:驱动程序可以根据目标平台选择合适的工具链，然后利用其基本信息做以下事情:
 
 \begin{enumerate}
-\item LExecute the correct assembler, linker, or any tool that is required for the target code's generation.
+\item LExecute生成目标代码所需的正确的汇编器、链接器或任何工具。
 
-\item Pass platform-specific flags to the compiler, assembler, or linker.
+\item 向编译器、汇编器或链接器传递特定于平台的标志。
 \end{enumerate}
 
-This information is crucial for building the source code since each platform might have its own unique characteristics, such as system library paths and supported assembler/linker variants. Without them, a correct executable or library cannot even be generated.
+这些信息对于构建源代码至关重要，因为每个平台可能都有自己独特的特征，比如：系统库路径和受支持的汇编/链接器变体。没有它们，甚至无法生成正确的可执行文件或库。
 
-This section hopes to teach you how to create Clang toolchains for custom platforms in the future. The toolchain framework in Clang is powerful enough to be adapted to a wide variety of use cases. For example, you can create a toolchain that resembles conventional compilers on Linux – including using GNU AS to assemble and GNU LD for linking – without you needing to make many customizations to a default library path or compiler flags. On the other hand, you can have an exotic toolchain that does not even use Clang to compile source code and uses a propriety assembler and linker with uncommon command-line flags. This section will try to use an example that catches the most common use cases without missing this framework's flexible aspect.
+本节希望帮助大家了解如何在将来为定制平台创建Clang工具链。Clang中的工具链框架足够强大，可以适应各种各样的用例，例如：可以创建一个类似于Linux上传统编译器的工具链——包括使用GNU AS进行组装和使用GNU LD进行链接——而不需要对默认库路径或编译器标志进行多次定制。另一方面，可以使用一个怪异的工具链，它甚至不使用Clang来编译源代码，而是使用一个专有的汇编器和带有不常见命令行标志的链接器。本节将尝试使用一个示例来演示最常见的用例，同时又能展示该框架的灵活性。
 
-This section is organized as follows: as usual, we will start with an overview of the project we are going to work on. After that, we will break down our project workload into three parts – adding custom compiler options, setting up a custom assembler, and setting up a custom linker – before we put them together to wrap up this section.
+这一部分的组织如下:将从我们将要从事的项目的概述开始。在此之后，我们将把项目工作负载分解为三个部分——添加定制编译器选项、设置定制汇编器和设置定制链接器——然后将它们放在一起，结束本节。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=System requirements]	
-\hspace*{0.7cm}As another friendly reminder, the following project can only work on Linux systems. Please make sure OpenSSL is installed.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=系统需求]	
+\hspace*{0.7cm}作为另一个友好的提示，下面的项目只能在Linux系统上工作。请确保已安装OpenSSL。
 \end{tcolorbox}
 
-\subsubsubsection{8.4.1\hspace{0.2cm}Project overview}
+\subsubsubsection{8.4.1\hspace{0.2cm}项目概述}
 
-We are going to create a toolchain called Zipline, which still uses Clang (its frontend and backend) to do normal compilation but encode the generated assembly code using Base64 during the assembling phase, and package those Base64-encoded files into a ZIP file (or .tarbell file) during the linking phase.
+我们将创建一个名为\textbf{Zipline}的工具链，它使用Clang(前端和后端)来进行普通的编译，但在汇编阶段使用\textbf{Base64}编码生成的汇编代码，并在链接阶段将这些Base64编码的文件打包成\textbf{ZIP文件}(或\texttt{.tarbell}文件)。
 
 \begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Base64]	
-\hspace*{0.7cm}Base64 is an encoding scheme that is commonly used to convert binary into plain text. It can be easily transmitted in a context that does not support binary format (for example, HTTP headers). You can also apply Base64 to normal textual files, just like in our case.
+\hspace*{0.7cm}Base64是一种编码方案，通常用于将二进制文件转换为纯文本。它可以很容易地在不支持二进制格式的上下文中传输(例如，HTTP报头)。还可以将Base64应用于普通文本文件，就像我们的例子一样。
 \end{tcolorbox}
 
-This toolchain is basically useless in production environments. It's merely a demo that emulates common situations a developer might encounter when they're creating a new toolchain for custom platforms.
+这个工具链在生产环境中基本上是无用的。它只是一个演示，模拟开发人员在为定制平台创建新工具链时可能遇到的常见情况。
 
-This toolchain is enabled by a custom driver flag, -zipline/--zipline. When the flag is provided, first, the compiler will implicitly add the my\_include folder to your home directory as one of the header files searching the path. For example, recall that in the previous section, Adding custom driver flags, our custom -fuse-simple-log flag would implicitly include a header file, simple\_log.h, in the input source code:
+这个工具链是通过自定义驱动标志\texttt{-ziplin}/\texttt{-\,-zipline}来启用。当提供该标志时，编译器会隐式地将\texttt{my\_include}文件夹添加到你的主目录中，作为搜索头文件路径，例如：上一节中，添加自定义驱动标志，我们的自定义\texttt{-fuse-simple-log}标志将隐式地在输入源代码中包含一个头文件\texttt{simple\_log.h}:
 
 \begin{tcblisting}{commandshell={}}
 $ ls
@@ -38,7 +38,7 @@ $ clang++ -fuse-simple-log -fsyntax-only main.cc
 $ # OK
 \end{tcblisting}
 
-However, if simple\_log.h is not in the current directory, as in the preceding snippet, we need to specify its full path via another flag:
+然而，如果\texttt{simple\_log.h}不在当前目录中，就像前面的代码片段中那样，我们需要通过另一个标志指定它的路径:
 
 \begin{tcblisting}{commandshell={}}
 $ ls .
@@ -49,7 +49,7 @@ main.cc
 $ # OK
 \end{tcblisting}
 
-With the help of Zipline, you can put simple\_log.h inside /home/<user name>/my\_include, and the compiler will find it:
+在Zipline的帮助下，可以把\texttt{simple\_log.h}放在\texttt{/home/<user name>/my\_include}中，这样编译器就能找到它了:
 
 \begin{tcblisting}{commandshell={}}
 $ ls .
@@ -61,7 +61,7 @@ $ clang++ -zipline -fuse-simple-log -fsyntax-only main.cc
 $ # OK
 \end{tcblisting}
 
-The second feature of Zipline is that the clang executable will compile the source code into assembly code that's encoded by Base64 under the -c flag, which was supposed to assemble the assembly file – coming out from the compiler – into an object file. Here is an example command:
+Zipline的第二个特性是，\texttt{clang}可执行文件将源代码编译成由Base64在\texttt{-c}标志下编码的汇编代码，该汇编代码将汇编文件(来自编译器)编译成一个目标文件。下面是命令示例:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -zipline -c test.c
@@ -78,9 +78,9 @@ LEBmdW5jdGlvbgpfWjNmb29pOgoJLmNm
 $
 \end{tcblisting}
 
-The preceding file command showed that the generated file, test.o, from the previous invocation of clang, is no longer a binary format object file. The content of this file is now a Base64-encoded version of the assembly code that was generated from the compiler's backend.
+前面的\texttt{file}命令显示生成的文件\texttt{test.o}，从之前使用\texttt{clang}开始，就不再是二进制格式的对象文件。这个文件的内容就是编译器后端生成的汇编代码(Base64编码)版本。
 
-Finally, Zipline replaces the original linking stage with a custom one that packages and compresses the aforementioned Base64-encoded assembly files into a .zip file. Here is an example:
+最后，Zipline用一个定制阶段替换了原来的链接阶段，这个定制阶段将前面提到的Base64编码的程序集文件打包并压缩到一个\texttt{.zip}文件中。下面是一个例子:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -zipline test.c -o test.zip
@@ -89,9 +89,9 @@ test.zip: Zip archive, at least v2.0 to extract
 $
 \end{tcblisting}
 
-If you unzip test.zip, you will find that those extracted files are Base64-encoded assembly files, as we mentioned earlier.
+如果解压\texttt{test.zip}，将发现这些解压的文件是Case64编码的程序集文件。
 
-Alternatively, we can use Linux's tar and gzip utilities to package and compress them in Zipline. Let's look at an example:
+或者，我们可以使用Linux的\texttt{tar}和\texttt{gzip}工具将它们打包并压缩到Zipline中:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -zipline -fuse-ld=tar test.c -o test.tar.gz
@@ -100,16 +100,16 @@ test.tar.gz: gzip compressed data, from Unix, original size…
 $
 \end{tcblisting}
 
-By using the existing -fuse-ld=<linker name> flag, we can choose between using zip or tar and gzip for our custom linking phase.
+通过使用现有的\texttt{-fuse-ld=<链接器名称>}标志，我们可以在自定义链接阶段选择使用\texttt{zip}、\texttt{tar}或\texttt{gzip}。
 
-In the next section, we are going to create the skeleton code for this toolchain and show you how to add an additional folder to the header file searching path.
+下一节中，我们将为这个工具链创建框架代码，并展示如何向头文件搜索路径添加额外的文件夹路径。
 
-\subsubsubsection{8.4.2\hspace{0.2cm}Creating the toolchain and adding a custom include path}
+\subsubsubsection{8.4.2\hspace{0.2cm}创建工具链并添加自定义的包含路径}
 
-In this section, we are going to create the skeleton for our Zipline toolchain and show you how to add an extra include folder path – more specifically, an extra system include path – to the compilation stage within Zipline. Here are the detailed steps:
+本节中，我们将为Zipline工具链创建框架，并展示如何在Zipline的编译阶段添加一个额外的包含文件夹路径——更确切地说，一个额外的\textbf{系统包含路径}。具体步骤如下:
 
 \begin{enumerate}
-\item Before we add a real toolchain implementation, don't forget that we are going to use a custom driver flag, -zipline/--zipline, to enable our toolchain. Let's use the same skill we learned in the previous section, Adding custom driver flags, to do that. Inside clang/include/clang/Driver/Options.td, we will add the following lines:
+\item 在添加工具链实现之前，不要忘记使用自定义驱动标志\texttt{-zipline}/\texttt{-\,-zipline}来启用工具链。使用我们在前一节学到的技能，添加自定义驱动标志来完成。在\texttt{clang/include/clang/Dri\\ver/Options.td}里面，我们将增加以下行:
 
 \begin{lstlisting}[style=styleJavaScript]
 // zipline toolchain
@@ -117,11 +117,12 @@ def zipline : Flag<["-", "--"], "zipline">,
 Flags<[NoXarchOption]>;
 \end{lstlisting}
 
-Again, Flag tells us this is a boolean flag and NoXarchOption tells us that this flag is driver-only. We will use this driver flag shortly
+同样，\texttt{Flag}说明这是一个布尔标志，而\texttt{NoXarchOption}说明这个标志是驱动唯一的。我们将很快使用这个驱动标志。
 
-\item Toolchains in Clang are represented by the clang::driver::ToolChain class. Each toolchain supported by Clang is derived from it, and their source files are put under the clang/lib/Driver/ToolChains folder. We are going to create two new files there: Zipline.h and Zipline.cpp.
+\item Clang中的工具链由\texttt{clang::driver::ToolChain}类表示。Clang支持的每个工具链都是从它派生出来的，源文件在\texttt{clang/lib/Driver/ToolChains}文件夹下。我们将在那里创建两个新文件:\texttt{Zipline.h}和\texttt{Zipline.cpp}。
 
-\item For Zipline.h, let's add the following skeleton code first:
+\item 对于\texttt{Zipline.h}，先添加以下框架代码:
+
 \begin{lstlisting}[style=styleCXX]
 namespace clang {
 namespace driver {
@@ -149,9 +150,9 @@ protected:
 } // end namespace clang
 \end{lstlisting}
 
-The class we created here, ZiplineToolChain, is derived from Generic\_ELF, which is a subclass of ToolChain that's specialized for systems that use ELF as its execution format – including Linux. In addition to the parent class, there are three important methods that we are going to implement in this or later sections: AddClangSystemIncludeArgs, buildAssembler, and buildLinker.
+我们在这里创建的\texttt{ZiplineToolChain}类，是从\texttt{Generic\_ELF}派生而来，\texttt{Generic\_ELF}是\texttt{ToolChain}的子类，专门用于使用ELF作为其执行格式的系统——包括Linux。除了父类之外，还有三个重要的方法，我们将在本节或后面的章节中实现:\texttt{AddClangSystemIncludeArgs}、\texttt{buildAssembler}和\texttt{buildLinker}。
 
-\item The buildAssembler and buildLinker methods generate Tool instances that represent the commands or programs to be run in the assembling and linking stages, respectively. We will cover them in the following sections. Now, we are going to implement the AddClangSystemIncludeArgs method. Inside Zipline. cpp, we will add its method body:
+\item \texttt{buildAssembler}和\texttt{buildLinker方}法生成的\texttt{Tool}实例分别表示要在汇编和链接阶段运行的命令或程序(我们将在下面几节中介绍它们)。现在，我们将实现\texttt{AddClangSystemIncludeArgs}方法。在\texttt{Zipline.cpp}中，我们将添加相应实现:
 
 \begin{lstlisting}[style=styleCXX]
 void ZiplineToolChain::AddClangSystemIncludeArgs(
@@ -166,9 +167,9 @@ void ZiplineToolChain::AddClangSystemIncludeArgs(
 }
 \end{lstlisting}
 
-The only thing we are doing here is calling the addSystemInclude function with the full path to the my\_include folder located in the home directory. Since each user's home directory is different, we are using the sys::fs::expand\_tilde helper function to expand ~/my\_include – where ~ represents the home directory in Linux and Unix systems – in the absolute path. The addSystemInclude function, on the other hand, helps you add "-internalisystem" "/path/to/my\_include" flags to the list of all the frontend flags. The -internal-isystem flag is used for designating folders of system header files, including standard library headers and some platform-specific header files.
+我们在这里做的唯一一件事是使用\texttt{addSystemInclude}函数与位于主目录中的\texttt{my\_include}文件夹的路径。由于每个用户的主目录不同，我们使用\texttt{sys::fs::expand\_tilde}助手函数将\texttt{~/my\_include}(其中\texttt{~}表示Linux和Unix系统中的主目录)扩展到绝对路径中。另一方面，\texttt{addSystemInclude}函数可以将“\texttt{-internalisystem}”“\texttt{/path/to/my\_include}”标志添加到前端标志的列表中。\texttt{-internal-issystem}标志用于指定系统头文件的文件夹，包括标准库头文件和平台特定的头文件。
 
-\item Last but not least, we need to teach the driver to use the Zipline toolchain when it sees our newly created -zipline/--zipline driver flag. We are going to modify the Driver::getToolChain method inside clang/lib/Driver/Driver. cpp to do so. The Driver::getToolChain method contains a huge switch case for selecting different toolchains based on the target operating system and hardware architecture. Please navigate to the code handling the Linux system; we are going to add an extra branch condition there:
+\item 最后，当Zipline工具链看到新创建的\texttt{-zipline}/\texttt{-\,-zipline}驱动标志时，需要我们教会驱动使用Zipline工具链。我们需要修改\texttt{clang/lib/Driver/Driver.cpp}中的 \texttt{Driver::getTool\\Chain}方法。\texttt{Driver::getToolChain}方法包含一个巨大的开关盒，用于根据目标操作系统和硬件架构选择不同的工具链(具体的情况，请浏览处理Linux系统的代码)。我们将在这里添加一个额外的分支条件:
 
 \begin{lstlisting}[style=styleCXX]
 const ToolChain
@@ -189,15 +190,15 @@ const llvm::Triple &Target) const {
 }
 \end{lstlisting}
 
-The extra else-if statement basically says that if the target OS is Linux, then we will use Zipline when the -zipline/--zipline flag is given.
+额外的\texttt{else-if}语句基本上是说，如果目标操作系统是Linux，那么当指定\texttt{-zipline}/\texttt{-\,-zip\\line}时，我们将使用Zipline。
 
 \end{enumerate}
 
-With that, you have added the skeleton of Zipline and successfully told the driver to use Zipline when a custom driver flag is given. On top of that, you've also learned how to add extra system library folders to the header file search path.
+这样，您就添加了Zipline的框架，并成功地告诉驱动程序在给定自定义驱动程序标志时使用Zipline。除此之外，还了解了如何向头文件搜索路径添加额外的系统库文件夹。
 
-In the next section, we are going to create a custom assembling stage and connect it to the toolchain we created here.
+下一节中，我们将创建一个自定义汇编阶段，并将其连接到我们创建的工具链中。
 
-\subsubsubsection{8.4.3\hspace{0.2cm}Creating a custom assembling stage}
+\subsubsubsection{8.4.3\hspace{0.2cm}创建自定义汇编阶段}
 
 As we mentioned in the Project overview section, instead of doing regular assembling to convert assembly code into an object file in the assembling stage of Zipline, we are invoking a program to convert the assembly file we generated from Clang into its Base64-encoded counterpart. Before we go deeper into its implementation, let's learn how each of these stages in a toolchain is represented.
 
