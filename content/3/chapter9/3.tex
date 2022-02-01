@@ -3,7 +3,7 @@ Modern compiler optimizations can be complex. They usually require lots of infor
 
 Some of this information – called analysis, in LLVM – is expensive to evaluate. In addition, a single analysis might also depend on other analyses. Therefore, LLVM creates an AnalysisManager component to handle all tasks related to program analysis in LLVM. In this section, we are going to show you how to use AnalysisManager in your own Passes for the sake of writing more powerful and sophisticated program transformations or analyses. We will also use a sample project, HaltAnalyzer, to drive our tutorial here. The next section will provide you with an overview of HaltAnalyzer before moving on to the detailed development steps.
 
-\subsubsubsection{9.3.1\hspace{0.2cm}Overview of the project}
+\subsubsubsection{9.3.1\hspace{0.2cm}项目概述}
 
 HaltAnalyzer is set up in a scenario where target programs are using a special function, my\_halt, that terminates the program execution when it is called. The my\_halt function is similar to the std::terminate function, or the assert function when its sanity check fails. 
 
