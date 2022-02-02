@@ -1,13 +1,13 @@
 
-Modern compiler optimizations can be complex. They usually require lots of information from the target program in order to make correct decisions and optimal transformations. For example, in the Writing an LLVM Pass for the new PassManager section, LLVM used the noalias attribute to calculate memory aliasing information, which might eventually be used to remove redundant memory loads.
+现代编译器优化可能很复杂，通常需要来自目标程序的大量信息，以便做出正确的决策和最佳的转换，例如：在为新PassManager编写一个LLVM Pass时，LLVM会使用\texttt{noalias}属性来计算内存别名信息，这可以用来删除冗余的内存负载。
 
-Some of this information – called analysis, in LLVM – is expensive to evaluate. In addition, a single analysis might also depend on other analyses. Therefore, LLVM creates an AnalysisManager component to handle all tasks related to program analysis in LLVM. In this section, we are going to show you how to use AnalysisManager in your own Passes for the sake of writing more powerful and sophisticated program transformations or analyses. We will also use a sample project, HaltAnalyzer, to drive our tutorial here. The next section will provide you with an overview of HaltAnalyzer before moving on to the detailed development steps.
+其中一些信息——在LLVM中称为\textbf{分析}——评估代价相当昂贵。此外，单个分析也可能依赖于其他分析。因此，LLVM创建\texttt{AnalysisManager}组件来处理所有与LLVM分析相关的任务。本节中，我们将展示如何在自己的Pass中使用AnalysisManager，以便编写更强大和更复杂的程序转换或分析。我们还将使用一个示例项目\textbf{HaltAnalyzer}来演示我们的教程。下一节将提供HaltAnalyzer的概述，然后再进入详细的开发阶段。
 
 \subsubsubsection{9.3.1\hspace{0.2cm}项目概述}
 
-HaltAnalyzer is set up in a scenario where target programs are using a special function, my\_halt, that terminates the program execution when it is called. The my\_halt function is similar to the std::terminate function, or the assert function when its sanity check fails. 
+HaltAnalyzer是在一个场景中设置的，目标程序使用一个特殊的函数\texttt{my\_halt}，当它调用时终止程序的执行。\texttt{my\_halt}函数类似于\texttt{std::terminate}函数，或者\texttt{assert}函数(在完整性检查失败时)。
 
-The job of HaltAnalyzer is to analyze the program to find basic blocks that are guaranteed to be unreachable because of the my\_halt function. To be more specific, let's take the following C code as an example:
+HaltAnalyzer的工作是分析程序，以找到因\texttt{my\_halt}函数而不可能运行的程序块。更具体地说，以如下代码为例:
 
 \begin{lstlisting}[style=styleCXX]
 int foo(int x, int y) {
@@ -25,9 +25,9 @@ int foo(int x, int y) {
 }
 \end{lstlisting}
 
-Because my\_halt was called at the beginning of the true block for the if (x < 43) statement, the code highlighted in the preceding snippet will never be executed (that is, my\_halt stopped all of the program executions before even getting to those lines).
+因为\texttt{my\_halt}在\texttt{if (x < 43)}语句的true分支的开头调用，所以该分支之后的代码永远不会执行(也就是说，在到达这些行之前，\texttt{my\_halt}就停止了所有的程序执行)。
 
-HaltAnalyzer should identify these basic blocks and print out warning messages to stderr. Just like the sample project from the previous section, HaltAnalyzer is also a function Pass wrapped inside a plugin. Therefore, if we use the preceding snippet as the input to our HaltAnalyzer Pass, it should print out the following messages:
+HaltAnalyzer应该识别这些基本块，并将警告消息输出到\texttt{stderr}。就像上一节的示例项目一样，HaltAnalyzer也是一个封装在插件中的Pass函数。因此，如果使用前面的代码作为HaltAnalyzer Pass的输入，应该打印出如下信息:
 
 \begin{tcblisting}{commandshell={}}
 $ opt --enable-new-pm --load-pass-plugin ./HaltAnalyzer.so \
@@ -37,19 +37,19 @@ $ opt --enable-new-pm --load-pass-plugin ./HaltAnalyzer.so \
 $
 \end{tcblisting}
 
-The \%if.else and \%if.then2 strings are just names for the basic blocks in the if (y > 45) statement (you might see different names on your side). Another thing worth noting is the --disable-output command-line flag. By default, the opt utility will print out the binary form of LLVM IR (that is, the LLVM bitcode) anyway unless users redirect the output to other places via the -o flag. Using the aforementioned flag is merely to tell opt not to do that since we are not interested in the final content of LLVM IR (because we are not going to modify it) this time.
+\texttt{\%if.elese}和\texttt{\%if.then2}字符串只是\texttt{if (y > 45)}语句中基本块的名称(不同的设备可能会看到不同的名称)。另一件值得注意的事情是\texttt{-\,-disable-output}命令行标志。默认情况下，\texttt{opt}程序无论如何都会以二进制形式(即LLVM位码)输出LLVM IR，除非用户通过\texttt{-o}标志将输出重定向到其他地方。使用上述标志只是告诉\texttt{opt}不要这样做，因为我们对LLVM IR的最终内容不感兴趣(不会去修改它)。
 
-Although the algorithm of HaltAnalyzer seems pretty simple, writing it from scratch might be a pain. That's why we are leveraging one of the analyses provided by LLVM: the Dominator Tree (DT). The concept of Control Flow Graph (CFG) domination has been taught in most entry-level compiler classes, so we are not going to explain it in depth here. Simply speaking, if we say a basic block dominates another block, every execution flow that arrives at the latter is guaranteed to go through the former first. A DT is one of the most important and commonly used analyses in LLVM; most control flow-related transformations cannot live without it.
+虽然HaltAnalyzer的算法看起来非常简单，但从头编写可能会很痛苦。这里，我们利用LLVM提供的分析:\textbf{支配树(Dominator Tree, DT)}。\textbf{控制流图(CFG)}的概念已经在大多数入门级编译器课程中，所以我们不打算在这里深入解释它。简单地说，如果我们说一个基本块支配另一个块，每一个到达后者的执行流都保证先经过前者。DT是LLVM中最重要、最常用的分析方法之一，大多数与控制流相关的转换离不开它。
 
-Putting this idea into HaltAnalyzer, we are simply looking for all of the basic blocks that are dominated by the basic blocks that contain a function call to my\_halt (we are excluding the basic blocks that contain the my\_halt call sites from the warning messages). In the next section, we will show you detailed instructions on how to write HaltAnalyzer.
+把这个想法放到HaltAnalyzer中，我们只是简单地寻找所有的基本块，这些基本块包含对\texttt{my\_halt}的函数调用(我们从警告消息中排除了包含\texttt{my\_halt}调用的基本块)。下一节中，我们将详细说明如何编写HaltAnalyzer。
 
 
-\subsubsubsection{9.3.2\hspace{0.2cm}Writing the HaltAnalyzer Pass}
+\subsubsubsection{9.3.2\hspace{0.2cm}编写HaltAnalyzer Pass}
 
-In this project, we will only create a single source file, HaltAnalyzer.cpp. Most of the infrastructure, including CMakeListst.txt, can be reused from the StrictOpt project in the previous section:
+这个项目中，我们只创建一个源文件\texttt{HaltAnalyzer.cpp}。大多数基础设施，包括\texttt{CMakeListst.txt}，都可以从上一节的\texttt{StrictOpt}项目中拿过来直接用:
 
 \begin{enumerate}
-\item Inside HaltAnalyzer.cpp, first, we create the following Pass skeleton:
+\item 在\texttt{HaltAnalyzer.cpp}中，我们首先创建以下Pass框架:
 
 \begin{lstlisting}[style=styleCXX]
 class HaltAnalyzer : public PassInfoMixin<HaltAnalyzer> {
@@ -63,9 +63,9 @@ public:
 };
 \end{lstlisting}
 
-In addition to the run method that we saw in the previous section, we are creating an additional method, findHaltCalls, which will collect all of the Instruction calls to my\_halt in the current function and store them inside the Calls vector.
+除了前一节中看到的\texttt{run}方法之外，我们还创建了一个额外的方法\texttt{findHaltCalls}，它将收集当前函数中所有对\texttt{my\_halt}的指令调用，并将它们存储在\texttt{calls} vector中。
 
-\item Let's implement findHaltCalls first:
+\item 先实现\texttt{findHaltCalls}:
 
 \begin{lstlisting}[style=styleCXX]
 void HaltAnalyzer::findHaltCalls(Function &F) {
@@ -80,13 +80,13 @@ void HaltAnalyzer::findHaltCalls(Function &F) {
 }
 \end{lstlisting}
 
-This method uses llvm::instructions to iterate through every Instruction call in the current function and check them one by one. If the Instruction call is a CallInst – representing a typical function call site – and the callee name is my\_halt, we will push it into the Calls vector for later use.
+这个方法使用\texttt{llvm::instructions}来遍历当前函数中的每个\texttt{Instruction}调用，并逐个检查。如果指令调用是\texttt{CallInst}——代表典型的函数调用点——并且调用函数的名字是\texttt{my\_halt}，我们将把它放入到\texttt{Calls} vector中以供以后使用。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Function name mangling]	
-\hspace*{0.7cm}Be aware that when a line of C++ code is compiled into LLVM IR or native code, the name of any symbol – including the function name – will be different from what you saw in the original source code. For example, a simple function that has the name of foo and takes no argument might have \_Z3foov as its name in LLVM IR. We call such a transformation in C++ name mangling. Different platforms also adopt different name mangling schemes. For example, in Visual Studio, the same function name becomes ?foo@@YAHH@Z in LLVM IR.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=重建函数名]	
+\hspace*{0.7cm}请注意，当一行C++代码编译成LLVM IR或本机代码时，任何符号的名称——包括函数名——都将与原始源代码中的不同，例如：一个简单的函数，名称\texttt{foo}，没有参数，可能在LLVM IR中称为\texttt{\_Z3foov}。在C++中，我们称这种转换为\textbf{名称重建}。不同的平台也会采用不同的名称转换方案，例如：Visual Studio中，相同的函数名在LLVM IR中变成\texttt{?foo@@YAHH@Z}。
 \end{tcolorbox}
 
-\item Now, let's go back to the HaltAnalyzer::run method. There are two things we are going to do. We will collect the call sites to my\_halt via findHaltCalls, which we just wrote, and then retrieve the DT analysis data:
+\item 现在，让我们回到\texttt{HaltAnalyzer::run}方法。要做两件事，将通过\texttt{findHaltCalls}收集\texttt{my\_halt}的调用点(这是我们刚刚写的)，然后检索DT，分析数据:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/IR/Dominators.h"
@@ -101,29 +101,27 @@ HaltAnalyzer::run(Function &F, FunctionAnalysisManager
 }
 \end{lstlisting}
 
-The highlighted line in the preceding snippet is the main character of this section. It shows us how to leverage the provided FunctionAnalysisManager type argument to retrieve specific analysis data (in this case, DominatorTree) for a specific Function class.
+前面代码中，向我们展示了如何利用\texttt{FunctionAnalysisManager}类型参数来检索特定\texttt{Function}类，再进行特定的分析数据(在本例中为\texttt{DominatorTree})。
 
-Although, so far, we have (kind of) used the words analysis and analysis data interchangeably, in a real LLVM implementation, they are actually two different entities. Take the DT that we are using here as an example:
+目前为止，我们(在某种程度上)交替使用了分析和分析数据这两个词，但在实际的LLVM实现中，它们是两个不同的实体。以我们这里用的DT为例:
 
 \begin{enumerate}[label=\alph*)]
-\item DominatorTreeAnalysis is a C++ class that evaluates dominating relationships from the given Function. In other words, it is the one that performs the analysis.
+\item \textbf{DominatorTreeAnalysis}是一个C++类，计算给定\texttt{Function}的关系。换句话说，它是执行分析的对象。
 
-\item DominatorTree is a C++ class that represents the result generated from
-DominatorTreeAnalysis. This is just static data that will be cached by AnalysisManager until it is invalidated. 
+\item \textbf{DominatorTree}是一个C++类，表示\texttt{DominatorTreeAnalysis}生成的结果。这只是静态数据，AnalysisManager会缓存它直到它失效为止。
 
 \end{enumerate}
 
-Furthermore, LLVM asks every analysis to clarify its affiliated result type via the Result member type. For example, DominatorTreeAnalysis::Result is
-equal to DominatorTree. 
+此外，LLVM要求每个分析通过\texttt{Result}成员类型来搞清其附属的结果类型。例如:\texttt{DominatorTreeAnalysis::Result}等于\texttt{DominatorTree}。
 
-To make this even more formal, to associate the analysis data of an analysis class, T, with a Function variable, F, we can use the following snippet:
+为了使其更加正式，为了将分析类\texttt{T}的分析数据与\texttt{Function}变量\texttt{F}关联起来，可以使用如下的代码:
 
 \begin{lstlisting}[style=styleCXX]
 // `FAM` is a FunctionAnalysisManager
 typename T::Result &Data = FAM.getResult<T>(F);
 \end{lstlisting}
 
-\item After we retrieve DominatorTree, it's time to find all of the basic blocks dominated by the Instruction call sites that we collected earlier:
+\item 在检索\texttt{DominatorTree}之后，是时候找到之前收集到的\texttt{Instruction}调用点，并控制的所有基本块了:
 
 \begin{lstlisting}[style=styleCXX]
 PreservedAnalyses
@@ -148,11 +146,11 @@ HaltAnalyzer::run(Function &F, FunctionAnalysisManager
 }
 \end{lstlisting}
 
-By using the DominatorTree::getDescendants method, we can retrieve all of the basic blocks dominated by a my\_halt call site. Note that the results from getDescendants will also contain the block you put into the query (in this case, the block containing the my\_halt call sites), so we need to exclude it before printing the basic block name using the BasicBlock::printAsOperand method.
+通过使用\texttt{DominatorTree::getDescendants}方法，我们可以检索\texttt{my\_halt}调用点所控制的所有基本块。注意，\texttt{getDescendants}的结果也将包含放入的查询块(本例中，是包含\texttt{my\_halt}调用点的块)，因此需要我们在使用\texttt{BasicBlock::printAsOperand}方法打印基本块名称之前将其排除。
 
-With the ending of the returning PreservedAnalyses::all(), which tells AnalysisManager that this Pass does not invalidate any analysis since we don't modify the IR at all, we will wrap up the HaltAnalyzer::run method here.
+返回\texttt{PreservedAnalyses::all()}的末尾，它告诉AnalysisManager这个Pass不会使任何分析失效(因为没有修改IR)，我们将在这里包装\texttt{HaltAnalyzer::run}方法。
 
-\item Finally, we need to dynamically insert our HaltAnalyzer Pass into the Pass pipeline. We are using the same method that we did in the last section, by implementing the llvmGetPassPluginInfo function and using PassBuilder to put our Pass at one of the EPs in the pipeline:
+\item 最后，我们需要动态地将HaltAnalyzer Pass插入到Pass流水中。使用与上一节相同的方法，通过实现\texttt{llvmGetPassPluginInfo}函数，并使用\texttt{PassBuilder}将我们的Pass放在流水中的某些EP上:
 
 \begin{lstlisting}[style=styleCXX]
 extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_
@@ -174,14 +172,13 @@ llvmGetPassPluginInfo() {
 }
 \end{lstlisting}
 
-In comparison to StrictOpt in the previous section, we are using registerOptimizerLastEPCallback to insert HaltAnalyzer after all of the other optimization Passes. The rationale behind this is that some optimizations might move basic blocks around, so prompting warnings too early might not be very useful. Nevertheless, we are still leveraging ModuletoFunctionPassAdaptor to wrap around our Pass; this is because registerOptimizerLastEPCallback only provides ModulePassManager for us to add our Pass, which is a function Pass.
+与前一节中的\texttt{StrictOpt}相比，我们使用\texttt{registeroptimizerlastcallback}在所有其他优化Pass之后插入HaltAnalyzer。这背后的基本原理是，一些优化可能会修改基本块，所以过早地提示警告可能不是很有用。尽管如此，我们仍然利用\texttt{ModuletoFunctionPassAdaptor}来包装我们的Pass，这是因为\texttt{registeroptimizerlastcallback}只提供了\texttt{ModulePassManager}，让我们添加Pass(其实就是一个Pass函数)。
 
 \end{enumerate}
 
-These are all the necessary steps to implement our HaltAnalyzer. Now you have learned how to use LLVM's program analysis infrastructure to obtain more information about the target program in an LLVM Pass. These skills can provide you with more insight into IR when you are developing a Pass. In addition, this infrastructure allows you to reuse highquality, off-the-shelf program analysis algorithms from LLVM instead of recreating the wheels by yourself. To browse all of the available analyses provided by LLVM, the llvm/include/llvm/Analysis folder in the source tree is a good starting point. Most of the header files within this folder are standalone analysis data files that you can use.
+这些就是实现HaltAnalyzer的所有步骤了。现在，我们已经了解了如何使用LLVM的程序分析基础结构，来获取LLVM Pass中关于目标程序的更多信息。在开发一个Pass时，这些技能可以让开发者对IR有更深入的理解。此外，这个设施允许重用来自LLVM的高质量、现成的程序分析算法，而不是自己重新创建轮子。要浏览LLVM提供的所有可用分析，在源代码树中的\texttt{llvm/include/llvm/Analysis}文件夹中的大多数头文件，都是可以使用的独立分析数据文件。
 
-In the final section of this chapter, we will show you some diagnosis techniques that are useful for debugging an LLVM Pass.
-
+本章的最后一节中，我们将展示一些诊断技术，这些技术对调试LLVM Pass非常有用。
 
 
 
