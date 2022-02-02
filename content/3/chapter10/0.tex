@@ -1,22 +1,22 @@
-In the previous chapter, we learned about PassManager and AnalysisManager in LLVM. We went through some tutorials for developing an LLVM pass and how to retrieve program analysis data via AnalysisManager. The knowledge and skills we acquired help to build the foundation for developers to create composable building blocks for code transformation and program analysis.
+前一章中，我们了解了LLVM中的PassManager和AnalysisManager。了解了LLVM Pass的开发教程，以及如何通过AnalysisManager检索程序分析数据。相应的知识和技能有助于为开发人员创建，用于代码转换和程序分析的可组合构建块。
 
-In this chapter, we are going to focus on the methodology of processing LLVM IR. LLVM IR is a target-independent intermediate representation for program analysis and compiler transformation. You can think of LLVM IR as an alternative form of the code you want to optimize and compile. However, different from the C/C++ code you're familiar with, LLVM IR describes the program in a different way – we will give you a more concrete idea later. The majority of the magic that's done by LLVM that makes the input program faster or smaller after the compilation process is performed on LLVM IR. Recall that in the previous chapter, Chapter 9, Working with PassManager and AnalysisManager, we described how different passes are organized in a pipeline fashion – that was the highlevel structure of how LLVM transforms the input code. In this chapter, we are going to show you the fine-grained details of how to modify LLVM IR in an efficient way
+本章中，将重点讨论LLVM IR的处理方法。LLVM IR是一种用于程序分析和编译器转换的(目标无关的)中间表示。可以将LLVM IR看作需要优化和编译的代码的另一种形式。然而，与熟悉的C/C++代码不同，LLVM IR以一种不同的方式描述了这个程序——稍后将更具体的说明。在LLVM IR上执行编译过程后，LLVM所做的大部分工作是使输入程序运行更快或体积更小。第9章，使用PassManager和AnalysisManager时，我们描述了不同的Pass是如何以流水方式组织的——这是LLVM转换输入代码的高级结构。本章中，我们将展示如何以一种有效的方式修改LLVM IR的信息
 
-Although the most straightforward and visual way to view LLVM IR is by its textual representation, LLVM provides libraries that contain a set of powerful modern C++ APIs to interface with the IR. These APIs can inspect the in-memory representation of LLVM IR and help us manipulate it, which effectively changes the target program we are compiling. These LLVM IR libraries can be embedded in a wide variety of applications, allowing developers to transform and analyze their target source code with ease.
+虽然查看LLVM IR最直接和可视化的方式是通过文本表示，但LLVM提供了包含一组强大的现代C++ API的库来与IR进行交互。这些API可以检查LLVM IR在内存中的表示，并帮助我们操作，这将有效地改变正在编译的目标程序。这些LLVM IR库可以嵌入到各种各样的应用程序中，允许开发人员转换和分析目标源代码。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=LLVM APIs for different programming languages]	
-\hspace*{0.7cm}Officially, LLVM only supports APIs for two languages: C and C++. Between them, C++ is the most feature-complete and update to date, but it also has the most unstable interface – it might be changed at any time without backward compatibility. On the other hand, C APIs have stable interfaces but come at the cost of lagging behind new feature updates, or even keeping certain features absent. The API bindings for OCaml, Go, and Python are in the source tree as community-driven projects.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=适用于不同编程语言的LLVM API]	
+\hspace*{0.7cm}LLVM官方只支持两种语言的API: C和C++。C++是功能最完整、更新最及时的，但也有最不稳定的接口——它可能在没有向后兼容的情况下，会随时进行更改。另一方面，C API有稳定的接口，但代价是滞后于新特性的更新，甚至使某些特性缺失。OCaml、Go和Python的API绑定在源代码树中，作为社区驱动的项目。
 \end{tcolorbox}
 
-We will try to guide you with generally applicable learning blocks driven by commonly seen topics and tasks that are supported by many realistic examples. Here is the list of topics we'll cover in this chapter:
+我们将尝试用普遍适用的模块来进行引导，这些模块由常见的主题和任务驱动，并由许多现实的示例支持。以下是我们将在本章讨论的内容:
 
 \begin{itemize}
-\item Learning LLVM IR basics
-\item Working with values and instructions
-\item Working with loops
+\item 学习LLVM IR基础知识
+\item 使用值和指令
+\item 使用循环
 \end{itemize}
 
-We will start by introducing LLVM IR. Then, we will learn about two of the most essential elements in LLVM IR – values and instructions. Finally, we'll end this chapter by looking at loops in LLVM – a more advanced topic that is crucial for working on performancesensitive applications.
+我们将首先介绍LLVM IR。然后，了解LLVM中两个最基本的元素IR值和指令后，将了解一下LLVM对于循环的处理——一个更高级的主题，这对于性能敏感的应用至关重要。
 
 
 

@@ -1,13 +1,13 @@
 
-In LLVM, a value is a unique construct – not only does it represent values stored in variables, but it also models a wide range of concepts from constants, global variables, individual instructions, and even basic blocks. In other words, it is one of the foundations of LLVM IR.
+在LLVM中，值是有独特的构造——不仅表示存储在变量中的值，还模拟了从常量、全局变量、单个指令，甚至基本块等广泛的概念。换句话说，它是LLVM IR的基础。
 
-The concept of value is especially important for instructions as it directly interacts with values in the IR. Therefore, in this section, we will put them into the same  discussion. We are going to see how values work in LLVM IR and how values are associated with instructions. On top of that, we are going to learn how to create and insert new instructions, as well as how to update them.
+值的概念对于指令特别重要，因为它直接与IR中的值交互。因此，在本节将对它们进行相同的讨论。我们将了解值在LLVM IR中是如何工作的，以及值是如何与指令相关联的。在此之上，我们将了解如何创建和插入新的指令，以及如何更新它们。
 
-To learn how to use values in LLVM IR, we must understand the important theory behind this system, which dictates the behavior and the format of LLVM instructions – the Single Static Assignment (SSA) form.
+为了学习如何在LLVM IR中使用值，我们必须理解这个系统背后的重要理论，它规定了LLVM指令的行为和格式——单一静态赋值(SSA)形式。
 
-\subsubsubsection{10.3.1\hspace{0.2cm}Understanding SSA}
+\subsubsubsection{10.3.1\hspace{0.2cm}SSA}
 
-SSA is a way of structuring and designing IR to make program analysis and compiler transformation easier to perform. In SSA, a variable (in the IR) will only be assigned a value exactly once. This means that we cannot manipulate a variable like this:
+\textbf{SSA}是一种构造和设计IR的方法，可以使程序分析和编译器转换更容易执行。在SSA中，一个变量(在IR中)只会赋值一次。这意味着不能像这样操作一个变量:
 
 \begin{lstlisting}[style=styleCXX]
 // the following code is NOT in SSA form
@@ -15,7 +15,7 @@ x = 94;
 x = 87; // `x` is assigned the second time, not SSA!
 \end{lstlisting}
 
-Although a variable can only be assigned once, it can be used multiple times in arbitrary instructions. For instance, check out the following code:
+尽管一个变量只能被赋值一次，但它可以在任意指令中多次使用:
 
 \begin{lstlisting}[style=styleCXX]
 x = 94;
@@ -23,7 +23,7 @@ y = x + 4; // first time `x` is used
 z = x + 2; // second time `x` is used
 \end{lstlisting}
 
-You might be wondering how normal C/C++ code – which is clearly not in SSA form – gets transformed into an SSA form of IR, such as LLVM. While there is a whole class of different algorithms and research papers that answer this question, which we are not going to cover here, most of the simple C/C++ code can be transformed using trivial techniques such as renaming. For instance, let's say we have the following (non-SSA) C code:
+读者们可能想知道普通的C/C++代码(显然不是SSA形式)如何转换成SSA形式的IR，比如：LLVM。虽然有很多不同的算法和研究论文可以回答这个问题，但我们不打算在这里讨论，大多数简单的C/C++代码都可以通过一些简单的技术进行转换，比如：重命名。例如，假设我们有以下(非SSA)C代码:
 
 \begin{lstlisting}[style=styleCXX]
 x = 94;
@@ -31,7 +31,7 @@ x = x * y; // `x` is assigned more than once, not SSA!
 x = x + 5;
 \end{lstlisting}
 
-Here, we can rename x in the first assignment with something like x0 and x on the lefthand side of the second and third assignments with alternative names such as x1 and x2, respectively:
+这里，我们可以在第一个赋值语句中重命名\texttt{x}，在第二个和第三个赋值语句的左边分别使用\texttt{x0}和\texttt{x}这样的名称，例如：\texttt{x1}和\texttt{x2}:
 
 \begin{lstlisting}[style=styleCXX]
 x0 = 94;
@@ -39,29 +39,29 @@ x1 = x0 * y;
 x2 = x1 + 5;
 \end{lstlisting}
 
-With these simple measurements, we can obtain the SSA form of our original code with the same behavior.
+通过这些简单的技巧，我们可以获得具有相同行为的原始代码的SSA。
 
-To have a more comprehensive understanding of SSA, we must change our way of thinking about what instructions look like in a program. In imperative programming languages such as C/C++, we often treat each statement (instruction) as an action. For instance, in the following diagram, on the left-hand side, the first line represents an action that "assigns 94 to variable x" where the second line means "do some multiplication using x and y before storing the result in the x variable":
-
-\hspace*{\fill} \\ %插入空行
-\begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter10/images/4.png}\\
-Figure 10.4 – Thinking instructions as "actions"
-\end{center}
-
-These interpretations sound intuitive. However, things get tricky when we make some transformations – which is, of course, a common thing in a compiler – on these instructions. In the preceding diagram, on the right-hand side, when the first instruction becomes x = 87, we don't know if this modification affects other instructions. If it does, we are not sure which one of these gets affected. This information not only tells us whether there are other potential opportunities to optimize, but it is also a crucial factor for the correctness of compiler transformation – after all, no one wants a compiler that will break your code when optimization is enabled. What's worse, let's say we are inspecting the x variable on the right-hand side of Action 3. We are interested in the last few instructions that modify this x. Here, we have no choice but to list all the instructions that have x on their left-hand side (that is, using x as the destination), which is pretty inefficient.
-
-Instead of looking at the action aspect of an instruction, we can focus on the data that's generated by an instruction and get a clear picture of the provenance of each instruction – that is, the region that can be reached by its resulting value. Furthermore, we can easily find out the origins of arbitrary variables/values. The following diagram illustrates this advantage:
+为了对SSA有一个更全面的理解，必须改变我们对程序中指令的思考方式。在\textbf{命令式编程语言}(如C/C++)中，经常将每个语句(指令)视为一个\textbf{动作}，例如：在下面的图中，在左边，第一行表示“将94赋给变量x”的操作，第二行表示“在将结果存储到变量x之前，使用x和y做一些乘法”:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter10/images/5.png}\\
-Figure 10.5 – SSA highlighting the dataflow among instructions
+\includegraphics[width=0.8\textwidth]{content/3/chapter10/images/4.png}\\
+图10.4 - 将指令视为“动作”
 \end{center}
 
-In other words, SSA highlights the dataflow in a program so that the compiler will have an easier time tracking, analyzing, and modify the instructions.
+这些解释听起来很直观。然而，当我们对这些指令进行一些转换时(当然，这是编译器中常见的事情)，事情就变得棘手了。在图中，在右边，当第一条指令变成\texttt{x = 87}时，我们不知道这个修改是否会\textbf{影响}其他指令。如果会影响，我们还不确定哪一个指令会受到影响。这个信息不仅告诉我们是否有其他潜在的优化机会，而且它也是编译器转换正确性的关键因素——毕竟，没有人希望在启用优化时编译器会破坏原始的代码。更糟糕的是，假设我们要检查\textbf{动作3}右边的\texttt{x}变量。我们感兴趣的是修改这个\texttt{x}的最后几条指令。在这里，我们只能列出所有左边有\texttt{x}的指令(也就是说，使\texttt{x}作为目标)，这非常的低效。
 
-Instructions in LLVM are organized in SSA form. This means we are more interested in the value, or the data flow generated by an instruction, rather than which variable it stores the result in. Since each instruction in LLVM IR can only produce a single result value, an Instruction object – recall that Instruction is the C++ class that represents an instruction in LLVM IR – also represents its result value. To be more specific, the concept of value in LLVM IR is represented by a C++ class called Value. Instruction is one of its child classes. This means that given an Instruction object, we can, of course, cast it to a Value object. That particular Value object is effectively the result of that Instruction:
+我们可以把注意力集中在指令所产生的数据上，从而清楚地了解每条指令的来源——也就是结果值可以到达的区域。此外，我们可以很容易地找到任意变量/值的原点。下图说明了这样做的优势:
+
+\hspace*{\fill} \\ %插入空行
+\begin{center}
+\includegraphics[width=0.7\textwidth]{content/3/chapter10/images/5.png}\\
+图10.5 - SSA显示指令之间的数据流
+\end{center}
+
+换句话说，SSA显示程序中的\textbf{数据流}，以便编译器更容易地跟踪、分析和修改指令。
+
+LLVM中的指令以SSA形式组织。这意味着我们更感兴趣的是由指令生成的值或数据流，而不是将结果存储在哪个变量中。因为LLVM IR中的每条指令只能产生一个结果值，\texttt{Instruction}对象——\texttt{Instruction}是在LLVM IR中表示一条指令的C++类——也可以表示它的\textbf{结果值}。更具体地说，LLVM IR中值的概念是由一个C++类\texttt{Value}表示的。\texttt{Instruction}是它的子类。这意味着给定一个\texttt{Instruction}对象，当然，我们可以将它强制转换为一个\texttt{Value}对象。这个特定的\texttt{Value}对象实际上是该\texttt{Instruction}的结果:
 
 \begin{lstlisting}[style=styleCXX]
 // let's say `I` represents an instruction `x = a + b`
@@ -69,39 +69,39 @@ Instruction *I = …;
 Value *V = I; // `V` effectively represents the value `x`
 \end{lstlisting}
 
-This is one of the most important things to know in order to work with LLVM IR, especially to use most of its APIs.
+这是使用LLVM IR最重要的事情之一，特别是在使用它API时。
 
-While the Instruction object represents its own result value, it also has operands that are served as inputs to the instruction. Guess what? We are also using Value objects as operands. For example, let's assume we have the following code:
+虽然\texttt{Instruction}对象表示它自己的结果值，但也有作为指令输入的操作数。你猜怎么着？我们也使用\texttt{Value}对象作为操作数。例如，有以下代码:
 
 \begin{lstlisting}[style=styleCXX]
 Instruction *BinI = BinaryOperator::Create(Instruction::Add,…);
 Instruction *RetI = ReturnInst::Create(…, BinI, …);
 \end{lstlisting}
 
-The preceding snippet is basically creating an arithmetic addition instruction (represented by BinaryOperator), whose result value will be the operand of another return instruction. The resulting IR is equivalent to the following C/C++ code:
+前面的代码片段基本上创建了一个算术加法指令(由\texttt{BinaryOperator}表示)，它的结果值将是另一个返回指令的操作数。生成的IR等价于下面的C/C++代码:
 
 \begin{lstlisting}[style=styleCXX]
 x = a + b;
 return x;
 \end{lstlisting}
 
-In addition to Instruction, Constant (the C++ class for different kinds of constant values), GlobalVariable (the C++ class for global variables), and BasicBlock are all subclasses of Value. This means that they're also organized in SSA form and that you can use them as the operands for an Instruction.
+除了\texttt{Instruction}之外，\texttt{Constant}(C++中用于不同类型常量的类)、\texttt{GlobalVariable}(C++中用于全局变量的类)和\texttt{BasicBlock}都是\texttt{Value}的子类。这意味着它们也是以SSA的形式组织的，并且可以将它们用作指令的操作数。
 
-Now, you know what SSA is and learned what impact it has on the design of LLVM IR. In the next section, we are going to discuss how to modify and update values in LLVM IR.
+现在，了解了SSA是什么，并了解了它对LLVM IR设计的影响。下一节中，我们将讨论如何修改和更新LLVM IR中的值。
 
-\subsubsubsection{10.3.2\hspace{0.2cm}Working with values}
+\subsubsubsection{10.3.2\hspace{0.2cm}值}
 
-SSA makes us focus on the data flow among instructions. Since we have a clear view of how values go from one instruction to the other, it's easy to replace the usage of certain values in an instruction. But how is the concept of "value usage" represented in LLVM? The following diagram shows two important C++ classes that answer this question – User and Use:
+SSA使我们关注指令之间的数据流。由于我们对值如何从一条指令传递到另一条指令有了清晰的认识，因此很容易在指令中替换某些值的使用。但“值”的概念在LLVM中是如何体现的呢？下面的图表显示了两个回答这个问题的重要C++类——\texttt{User}和\texttt{Use}:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter10/images/6.png}\\
-Figure 10.6 – The relationship between Value, User, and Use
+\includegraphics[width=0.5\textwidth]{content/3/chapter10/images/6.png}\\
+图10.6 - Value、User和Use之间的关系
 \end{center}
 
-As we can see, User represents the concept of an IR instance (for example, an Instruction) that uses a certain Value. Furthermore, LLVM uses another class, Use, to model the edge between Value and User. Recall that Instruction is a child class of Value – which represents the result that's generated by this instruction. In fact, Instruction is also derived from User, since almost all instructions take at least one operand.
+\texttt{User}代表了一个IR实例(例如，一条指令)的概念，它使用了一个特定的\texttt{Value}。此外，LLVM还使用了另一个类\texttt{Use}来创建\texttt{Value}和\texttt{User}之间的边界。\texttt{Instruction}是\texttt{Value}的子类——\texttt{Value}表示由该\texttt{Instruction}生成的结果。事实上，\texttt{Instruction}也是从\texttt{User}派生出来的，因为所有的\texttt{Instruction}都至少有一个操作数。
 
-A User might be pointed to by multiple Use instances, which means it uses many Value instances. You can use value\_op\_iterator provided by User to check out each of these Value instances; for example:
+多个\texttt{Use}实例可能指向一个\texttt{User}，这意味着\texttt{User}使用了多个\texttt{Value}实例。可以使用\texttt{User}提供的\texttt{value\_op\_iterator}来检索每个\texttt{Value}实例，例如:
 
 \begin{lstlisting}[style=styleCXX]
 // `Usr` has the type of `User*`
@@ -110,9 +110,9 @@ for (Value *V : Usr->operand_values()) {
 }
 \end{lstlisting}
 
-Again, operand\_values is just a utility function to generate a value\_op\_iterator range.
+同样，\texttt{operand\_values}只是一个实用函数，用于生成\texttt{value\_op\_iterator}的范围。
 
-Here is an example of why we want to iterate through all the User instances of a Value: imagine we are analyzing a program where one of its Function instances will return sensitive information – let's say, a get\_password function. Our goal is to ensure that whenever get\_password is called within a Function, its returned value (sensitive information) won't be leaked via another function call. For example, we want to detect the following pattern and raise an alarm:
+下面是我们为什么要遍历\texttt{Value}的所有\texttt{User}实例的一个例子:假设我们正在分析一个程序，其中一个\texttt{Function}实例将返回敏感信息——比如，一个\texttt{get\_password}函数。我们的目标是确保每当在函数中调用\texttt{get\_password}时，返回值(敏感信息)不会通过另一个函数调用而遭到泄露。例如，我们想要检测以下的模式，并发出警报:
 
 \begin{lstlisting}[style=styleCXX]
 void vulnerable() {
@@ -122,9 +122,7 @@ void vulnerable() {
 }
 \end{lstlisting}
 
-The find\_leackage function takes a CallInst argument – which represents a get\_password function call – and returns any User instance that uses the Value instance that's returned from that get\_password call. 
-
-A Value instance can be used by multiple different User instances. So, similarly, we can iterate through all of them using the following snippet:
+实现此分析的最常用的原生方法是，检查敏感\texttt{Value}的所有\texttt{User}实例。下面是示例代码:
 
 \begin{lstlisting}[style=styleCXX]
 User *find_leakage(CallInst *GetPWDCall) {
@@ -137,9 +135,9 @@ User *find_leakage(CallInst *GetPWDCall) {
 }
 \end{lstlisting}
 
-The find\_leackage function takes a CallInst argument – which represents a get\_ password function call – and returns any User instance that uses the Value instance that's returned from that get\_password call.
+\texttt{find\_leaks}函数接受一个\texttt{CallInst}参数——表示调用\texttt{get\_password}函数——并返回任何使用该\texttt{get\_password}调用返回的\texttt{Value}实例的\texttt{User}实例。
 
-A Value instance can be used by multiple different User instances. So, similarly, we can iterate through all of them using the following snippet:
+一个\texttt{Value}实例可以被多个不同的\texttt{User}实例使用。类似地，我们可以使用下面的片段来遍历它们:
 
 \begin{lstlisting}[style=styleCXX]
 // `V` has the type of `Value*`
@@ -148,44 +146,44 @@ for (User *Usr : V->users()) {
 }
 \end{lstlisting}
 
-With that, you've learned how to inspect the User instance of a Value, or the Value instance that's used by the current User. In addition, when we're developing a compiler transformation, it is pretty common to change the Value instance that's used by a User to another one. LLVM provides some handy utilities to do this.
+至此，我们了解了如何检查\texttt{Value}的\texttt{User}实例，或者当\texttt{User}使用的\texttt{Value}实例。此外，当我们开发编译器转换时，将\texttt{User}使用的\texttt{Value}实例更改为另一个实例是很常见的操作。LLVM提供了一些方便的工具来完成这项工作。
 
-First, the Value::replaceAllUsesWith method can, as its name suggests, tell all of its User instances to use another Value instead of it. The following diagram illustrates its effect:
+首先，\texttt{Value::replaceAllUsesWith}方法可以，正如它的名字所示的那样，告诉它的所有\texttt{User}实例使用另一个\texttt{Value}来代替原始的。下图说明了它的效果:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter10/images/7.png}\\
-Figure 10.7 – Effect of Value::replaceAllUsesWith
+\includegraphics[width=0.5\textwidth]{content/3/chapter10/images/7.png}\\
+图10.7 - Value::replaceAllUsesWith的效果
 \end{center}
 
-This method is really useful when you're replacing an Instruction with another Instruction. Using the preceding diagram to explain this, V1 is the original Instruction and V2 is the new one.
+当用另一个\texttt{Instruction}替换相应\texttt{Instruction}时，这个方法非常有用。使用前面的图表来解释这一点，\texttt{V1}是原来的\texttt{Instruction}，\texttt{V2}是新\texttt{Instruction}。
 
-Another utility function that does a similar thing is User::replaceUsesOfWith(From,To). This method effectively scans through all of the operands in this User and replaces the usage of a specific Value (the From argument) with another Value (the To argument).
+另一个实现类似功能的函数是\texttt{User::replaceUsesOfWith(From,To)}。此方法有效地扫描\texttt{User}中的所有操作数，并将特定\texttt{Value}(From参数)的使用替换为另一个\texttt{Value}(To参数)。
 
-The skills you've learned in this section are some of the most fundamental tools for developing a program transformation in LLVM. In the next section, we will talk about how to create and modify instructions.
+在本节中学习的技能是在LLVM中开发程序转换的一些基本工具。下一节中，我们将讨论如何创建和修改指令。
 
-\subsubsubsection{10.3.3\hspace{0.2cm}Working with instructions}
+\subsubsubsection{10.3.3\hspace{0.2cm}指令}
 
-Previously, we learned the basics of Value – including its relationship with Instruction – and the way to update Value instances under the framework of SSA. In this section, we are going to learn some more basic knowledge and skills that give you a better understanding of Instruction and help you modify Instruction instances in a correct and efficient way, which is the key to developing a successful compiler optimization.
+之前，我们了解了\texttt{Value}的基础知识——包括与指令的关系——以及在SSA框架下更新\texttt{Value}实例的方法。本节中，我们将了解一些更基本的知识和技能，可以更好地理解指令，并以正确和有效的方式修改指令实例，这是开发一个成功编译器优化的关键。
 
-Here is the list of topics we are going to cover in this section:
+下面是我们将在本节讨论的内容:
 
 \begin{itemize}
-\item Casting between different instruction types
-\item Inserting a new instruction
-\item Replacing an instruction
-\item Processing instructions in batches
+\item 不同指令类型之间的强制转换
+\item 插入新指令
+\item 更换指令
+\item 批量处理指令
 \end{itemize}
 
-Let's start by looking at different instruction types.
+让我们从不同的指令类型开始。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Casting between different instruction types}
+\textbf{不同指令类型之间的强制转换}
 
-In the previous section, we learned about a useful utility called InstVisitor. The InstVisitor class helps you determine the underlying class of an Instruction instance. It also saves you the efforts of casting between different instruction types. However, we cannot always rely on InstVisitor for every task that involves type casting between Instruction and its derived classes. More generally speaking, we want a simpler solution for type casting between parent and child classes.
+前一节中，我们了解了一个名为\texttt{InstVisitor}的程序，\texttt{InstVisitor}类可以确定指令实例的底层类。它还省去了在不同指令类型之间进行强制转换的工作。然而，我们不能总是依赖\texttt{InstVisitor}来处理每一个涉及到指令，及其派生类之间类型转换的任务。更简单地说，我们想要一个父类和子类之间类型转换的简单解决方案。
 
-Now, you might be wondering, but C++ already provided this mechanism via the dynamic\_cast directive, right? Here is an example of dynamic\_cast:
+C++已经通过\texttt{dynamic\_cast}指令提供了这种机制，对吗？下面是一个\texttt{dynamic\_cast}的例子:
 
 \begin{lstlisting}[style=styleCXX]
 class Parent {…};
@@ -200,11 +198,11 @@ void foo() {
 }
 \end{lstlisting}
 
-In the foo function used in the preceding code, we can see that in its second line, we can convert P into a Child1 instance because that is its underlying type. On the other hand, we cannot convert P into Child2 – the program will simply crash during runtime if we do so. 
+在代码中使用的\texttt{foo}函数中，可以在它的第二行中看到，可以将\texttt{P}转换为一个\texttt{Child1}实例，因为这是它的底层类型。另一方面，我们不能将\texttt{P}转换成\texttt{Child2}——如果这样做，程序会在运行时崩溃。
 
-Indeed, dynamic\_cast has the exact functionality we are looking for – more formally speaking, the Runtime Type Info (RTTI) feature – but it also comes with high overhead in terms of runtime performance. What's worse, the default implementation of RTTI in C++ is quite complex, making the resulting program difficult to optimize. Therefore, LLVM disables RTTI by default. Due to this, LLVM came up with its own system of runtime type casting that is much simpler and more efficient. In this section, we are going to talk about how to use it.
+实际上，\texttt{dynamic\_cast}具有我们正在寻找的确切功能——更正式地说，是\textbf{运行时类型信息(RTTI)}特性——但它在运行时性能方面也有很高的开销。糟糕的是，C++中RTTI的默认实现相当复杂，使得生成的程序难以优化。因此，LLVM默认关闭RTTI功能。由于这个原因，LLVM提出了自己的运行时类型转换系统，这个系统更加简单和高效。本节中，我们将讨论如何使用它。
 
-LLVM's casting framework provides three functions for dynamic type casting:
+LLVM的类型转换框架为动态类型转换提供了三个功能:
 
 \begin{itemize}
 \ttfamily
@@ -213,7 +211,7 @@ LLVM's casting framework provides three functions for dynamic type casting:
 \item dyn\_cast<T>(val)
 \end{itemize}
 
-The first function, isa<T> – pronounced "is-a" – checks if the val pointer type can be cast to a pointer of the T type. Here is an example:
+第一个函数\texttt{isa<T>}——发音为"is-a"——检查\texttt{val}指针类型是否可以转换为\texttt{T}类型的指针。下面是一个例子:
 
 \begin{lstlisting}[style=styleCXX]
 // `I` has the type of `Instruction*`
@@ -222,9 +220,9 @@ if (isa<BinaryOperator>(I)) {
 }
 \end{lstlisting}
 
-Note that differently from dynamic\_cast, you don't need to put BinaryOperator* as the template argument in this case – only a type without a pointer qualifier.
+注意，与\texttt{dynamic\_cast}不同，在这种情况下，不需要将\texttt{BinaryOperator*}作为模板参数——只需要一个没有指针限定符的类型。
 
-The cast<T> function performs the real type casting from (pointer-type) val to a pointer of the T type. Here is an example:
+\texttt{cast<T>}函数执行从(指针类型)\texttt{val}到\texttt{T}类型指针的实类型转换。下面是一个例子:
 
 \begin{lstlisting}[style=styleCXX]
 // `I` has the type of `Instruction*`
@@ -233,9 +231,9 @@ if (isa<BinaryOperator>(I)) {
 }
 \end{lstlisting}
 
-Again, you don't need to put BinaryOperator* as the template argument. Note that if you don't perform type checking using isa<T> before calling cast<T>, the program will just crash during runtime.
+同样，不需要将\texttt{BinaryOperator*}作为模板参数。注意，如果在调用\texttt{cast<T>}前没有使用\texttt{isa<T>}执行类型检查，程序将在运行时崩溃。
 
-The last function, dyn\_cast<T>, is a combination of isa<T> and cast<T>; that is, you perform type casting if applicable. Otherwise, it returns a null. Here is an example:
+最后一个函数\texttt{dyn\_cast<T>}，是\texttt{isa<T>}和\texttt{cast<T>}的组合。如果适用，可以执行类型转换。否则，返回null。下面是一个例子:
 
 \begin{lstlisting}[style=styleCXX]
 // `I` has the type of `Instruction*`
@@ -244,29 +242,29 @@ if (BinaryOperator *BinOp = dyn_cast<BinaryOperator>(I)) {
 }
 \end{lstlisting}
 
-Here, we can see some neat syntax that combines the variable declaration (of BinOp) with the if statement.
+这里，我们可以看到一些简洁的语法，将变量声明(\texttt{BinOp})与\texttt{if}语句结合在一起。
 
-Be aware that none of these APIs can take null as the argument. On the contrary, dyn\_cast\_or\_null<T> doesn't have this limitation. It is basically a dyn\_cast<T> API that accepts null as input.
+注意，这些API都不能以null作为参数。相反，\texttt{dyn\_cast\_or\_null<T>}则没有这个限制，是一个接受null作为输入的\texttt{dyn\_cast<T>}的API。
 
-Now, you know how to check and cast from an arbitrary Instruction instance to its underlying instruction type. Starting from the next section, we are finally going to create and modify some instructions.
+现在，了解了如何检查任意指令实例，并将其转换为其基础指令类型。从下一节开始，我们将创建和修改一些指令。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Inserting a new instruction}
+\textbf{插入新指令}
 
-In one of the code examples from the previous Understanding SSA section, we saw a snippet like this:
+在之前的理解SSA部分的一个代码示例中，我们看到了这样一段代码:
 
 \begin{lstlisting}[style=styleCXX]
 Instruction *BinI = BinaryOperator::Create(…);
 Instruction *RetI = ReturnInst::Create(…, BinI, …);
 \end{lstlisting}
 
-As suggested by the method's name – Create – we can infer that these two lines created a BinaryOperator and a ReturnInst instruction.
+正如方法名\texttt{Create}所示，我们可以推断这两行创建了一个\texttt{BinaryOperator}和一个\texttt{returnst}指令。
 
-Most of the instruction classes in LLVM provide factory methods – such as Create here – to build a new instance. People are encouraged to use these factory methods versus allocating instruction objects manually via the new keyword or malloc function. LLVM will manage the instruction object's memory for you – once it's been inserted into a BasicBlock. There are several ways to insert a new instruction into a BasicBlock:
+LLVM中的大多数指令类都提供了工厂方法——例如这里的\texttt{Create}——来构建一个新的实例。LLVM鼓励使用这些工厂方法，而不是通过\texttt{new}关键字或\texttt{malloc}函数手动分配指令对象。将指令插入到\texttt{BasicBlock}中时，LLVM将为你管理指令对象的内存。有几种方法可以将一条新指令插入到\texttt{BasicBlock}中:
 
 \begin{itemize}
-\item Factory methods in some instruction classes provide an option to insert the instruction right after it is created. For instance, one of the Create method variants in BinaryOperator allows you to insert it before another instruction after the creation. Here is an example:
+\item 某些指令类中的工厂方法提供了一个选项，可以在指令创建后立即插入指令，例如：\texttt{Binary\\Operator}中的\texttt{Create}方法变体允许将其插入创建之后的另一个指令之前。下面是一个例子:
 
 \begin{lstlisting}[style=styleCXX]
 Instruction *BeforeI = …;
@@ -274,11 +272,11 @@ auto *BinOp = BinaryOperator::Create(Opcode, LHS, RHS,
   "new_bin_op", BeforeI);
 \end{lstlisting}
 
-In such a case, the instruction represented by BinOp will be placed before the one represented by BeforeI. This method, however, can't be ported across different instruction classes. Not every instruction class has factory methods that provide this feature and even if they do provide them, the API might not be the same.
+在这种情况下，\texttt{BinOp}表示的指令将放置在\texttt{BeforeI}表示的指令之前。然而，这个方法不能在不同的指令类之间移植。并不是每个指令类都有提供此特性的工厂方法，即使它们提供了这些方法，API也可能不相同。
 
-\item We can use the insertBefore/insertAfter methods provided by the Instruction class to insert a new instruction. Since all instruction classes are subclasses of Instruction, we can use insertBefore or insertAfter to insert the newly created instruction instance before or after another Instruction.
+\item 我们可以使用\texttt{Instruction}类提供的\texttt{insertBefore}/\texttt{insertAfter}方法来插入新指令。由于所有的指令类都是\texttt{Instruction}的子类，我们可以使用\texttt{insertBefore}或\texttt{insertAfter}将新创建的指令实例插入到另一个指令之前或之后。
  
-\item We can also use the IRBuilder class. IRBuilder is a powerful tool for automating some of the instruction creation and insertion steps. It implements a builder design pattern that can insert new instructions one after another when developers invoke one of its creation methods. Here is an example:
+\item 我们也可以使用\texttt{IRBuilder}类，他是一个强大的工具，可以自动化一些指令创建和插入步骤，实现了一个构建器设计模式。当开发人员调用它的一个创建方法时，可以逐个地插入新的指令:
 
 \begin{lstlisting}[style=styleCXX]
 // `BB` has the type of `BasicBlock*`
@@ -290,25 +288,24 @@ auto *AddI = Builder.CreateAdd(LHS, RHS);
 Builer.CreateRet(AddI);
 \end{lstlisting}
 
-First, when we create an IRBuilder instance, we need to designate an insertion point as one of the constructor arguments. This insertion point argument can be a BasicBlock, which means we want to insert a new instruction at the end of BasicBlock; it can also be an Instruction instance, which means that new instructions are going to be inserted before that specific Instruction.
+首先，创建一个\texttt{IRBuilder}实例时，需要指定一个插入点作为构造函数参数。这个插入点参数可以是\texttt{BasicBlock}，这意味着我们想在\texttt{BasicBlock}的末尾插入一条新指令，也可以是一个\texttt{Instruction}实例，这意味着新的指令将插入到那个特定的\texttt{Instruction}之前。
 
-You are encouraged to use IRBuilder over other mechanisms if possible whenever you need to create and insert new instructions in sequential order.
+如果可能，当需要按顺序创建和插入新的指令时，推荐使用\texttt{IRBuilder}。
 
 \end{itemize}
 
-With that, you've learned how to create and insert new instructions. Now, let's look at how to replace existing instructions with others.
-
+至此，我们已经了解了如何创建和插入新的指令。现在，让我们看看如何用其他指令替换现有的指令。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Replacing an instruction}
+\textbf{替换指令}
 
-There are many cases where we will want to replace an existing instruction. For instance, a simple optimizer might replace an arithmetic multiplication instruction with a leftshifting instruction when one of the multiplication's operands is a power-of-two integer constant. In this case, it seems straightforward that we can achieve this by simply changing the operator (the opcode) and one of the operands in the original Instruction. That is not the recommended way to do things, however.
+有时，我们需要替换现有的指令，例如：当一个乘法操作数是2的幂整数常数时，一个简单的优化器可以用左移指令替换算术乘法指令。本例中，我们可以简单地通过改变原始\texttt{Instruction}中的操作符(操作码)和操作数来实现。然而，这并不是推荐的方式。
 
-To replace an Instruction in LLVM, you need to create a new Instruction (as the replacement) and reroute all the SSA definitions and usages from the original Instruction to the replacement one. Let's use the power-of-two-multiplication we just saw as an example:
+要替换LLVM中的指令，需要创建一个新的\texttt{Instruction}(作为替换指令)，并将所有SSA定义和用法从原来的\texttt{Instruction}变更到替换的指令。让我们用2次幂乘法作为例子:
 
 \begin{enumerate}
-\item The function we are going to implement is called replacePow2Mul, whose argument is the multiplication instruction to be processed (assuming that we have ensured the multiplication has a constant, power-of-two integer operand). First, we will retrieve the constant integer – represented by the ConstantInt class – operand and convert it into its base-2 logarithm value (via the getLog2 utility function; the exact implementation of getLog2 is left as an exercise for you):
+\item 我们要实现的函数叫做\texttt{replacePow2Mul}，它的参数是要处理的乘法指令(假设已经确保乘法具有一个常数，2的幂次整数操作数)。首先，我们将检索常量整数(由\texttt{ConstantInt}类表示)的操作数，并将其转换为其以2为底的对数值(通过\texttt{getLog2}函数，具体实现留给读者们做为练习):
 
 \begin{lstlisting}[style=styleCXX]
 void replacePow2Mul(BinaryOperator &Mul) {
@@ -321,7 +318,7 @@ void replacePow2Mul(BinaryOperator &Mul) {
 }
 \end{lstlisting}
 
-\item Next, we will create a new left-shifting instruction – represented by the ShlOperator class:
+\item 接下来，我们将创建一个新的左移指令——由\texttt{ShlOperator}类表示:
 
 \begin{lstlisting}[style=styleCXX]
 void replacePow2Mul(BinaryOperator &Mul) {
@@ -334,7 +331,7 @@ void replacePow2Mul(BinaryOperator &Mul) {
 }
 \end{lstlisting}
 
-\item Finally, before we remove the Mul instruction, we need to tell all the users of the original Mul to use our newly created Shl instead:
+\item 最后，在删除\texttt{Mul}指令之前，我们需要告诉原始\texttt{Mul}的所有用户使用新创建的\texttt{Shl}:
 
 \begin{lstlisting}[style=styleCXX]
 void replacePow2Mul(BinaryOperator &Mul) {
@@ -346,17 +343,17 @@ void replacePow2Mul(BinaryOperator &Mul) {
 }
 \end{lstlisting}
 
-Now, all the original users of Mul are using Shl instead. Thus, we can safely remove Mul from the program.
+现在，所有\texttt{Mul}的原始用户都改用了\texttt{Shl}。这样，我们就可以安全地将\texttt{Mul}从程序中移除了。
 
 \end{enumerate}
 
-With that, you've learned how to replace an existing Instruction properly. In the final subsection, we are going to talk about some tips for processing multiple instructions in a BasicBlock or a Function.
+这样，我们了解了如何正确地替换现有的指令。在最后的小节中，我们将讨论在\texttt{BasicBlock}或函数中处理多个指令的技巧。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Tips for processing instructions in batches}
+\textbf{批量处理指令}
 
-So far, we have been learning how to insert, delete, and replace a single Instruction. However, in real-world cases, we usually perform such actions on a sequence of Instruction instances (that are in a BasicBlock, for instance). Let's try to do that by putting what we've learned into a for loop that iterates through all the instructions in a BasicBlock; for instance:
+我们已经了解了如何插入、删除和替换一个\texttt{Instruction}。然而，在实际中，我们通常在一系列\texttt{Instruction}实例(例如，在\texttt{BasicBlock中})上执行这样的操作。让我们试着把我们学过的东西放到一个\texttt{for}循环中它会遍历\texttt{BasicBlock}中的所有指令，例如:
 
 \begin{lstlisting}[style=styleCXX]
 // `BB` has the type of `BasicBlock&`
@@ -368,11 +365,11 @@ for (Instruction &I : BB) {
 }
 \end{lstlisting}
 
-The preceding code used the replacePow2Mul function we just saw in the previous section to replace the multiplications in this BasicBlock with left-shifting instructions if the multiplication fulfills certain criteria. (This is checked by the isMulWithPowerOf2 function. Again, the details of this function have been left as an exercise to you.)
+前面的代码使用了我们在前一节中的\texttt{replacePow2Mul}函数，如果乘法满足某些条件，则用左移指令替换\texttt{BasicBlock}中的乘法。(\texttt{isMulWithPowerOf2}函数进行了检查。同样，这个函数的具体实现，就留给读者们作为练习。)
 
-This code looks pretty straightforward but unfortunately, it will crash while running this transformation. What happened here was that the iterator that's used for enumerating Instruction instances in BasicBlock became stale after running our replacePow2Mul. The Instruction iterator is unable to keep updated with the changes that have been applied to the Instruction instances in this BasicBlock. In other words, it's really hard to change the Instruction instances while iterating them at the same time.
+这段代码看起来非常简单，但不幸的是，它会在运行转换时崩溃。在运行了的\texttt{replacePow2Mul}之后，用于枚举\texttt{BasicBlock}中的\texttt{Instruction}实例的\textbf{迭代器}就过时了。\texttt{Instruction}迭代器无法更新这个\texttt{BasicBlock}中已经应用到\texttt{Instruction}实例的更改。换句话说，在迭代\texttt{Instruction}实例时更改它们非常困难。
 
-The simplest way to solve this problem is to push off the changes:
+解决这个问题的最简单的方法是延迟更改:
 
 \begin{lstlisting}[style=styleCXX]
 // `BB` has the type of `BasicBlock&`
@@ -389,13 +386,13 @@ for (auto *BinOp : Worklist) {
 }
 \end{lstlisting}
 
-The preceding code separates the previous code example into two parts (as two separate for loops). The first for loop is still iterating through all the Instruction instances in BasicBlock. But this time, it only performs the checks (that is, calling isMulWithPowerOf2) without replacing the Instruction instance right away if it passes the checks. Instead, this for loop pushes the candidate Instruction into array storage – a worklist. After finishing the first for loop, the second for loop inspects the worklist and performs the real replacement by calling replacePow2Mul on each worklist item. Since the replacements in the second for loop don't invalidate any iterators, we can finally transform the code without any crashes occurring.
+前面的代码将前面的代码示例分为两部分(作为两个独立的\texttt{for}循环)。第一个\texttt{for}循环仍然在遍历\texttt{BasicBlock}中的所有指令实例。但这一次，它只执行检查(也就是说，调用\texttt{isMulWithPowerOf2})，而不会在通过检查后立即替换指令实例。相反，这个\texttt{for}循环将候选指令推送到数组存储中——一个工作列表。在完成第一个\texttt{for}循环之后，第二个\texttt{for}循环会检查工作列表，并通过对每个工作列表项调用\texttt{replacePow2Mul}来执行替换。由于第二个\texttt{for}循环中的替换不会使任何迭代器失效，所以最终可以在不发生任何崩溃的情况下转换代码。
 
-There are, of course, other ways to circumvent the aforementioned iterator problem, but they are mostly complicated and less readable. Using a worklist is the safest and most expressive way to modify instructions in batches.
+当然，还有其他方法可以避免前面提到的迭代器问题，但它们大多比较复杂，可读性也较差。使用工作列表是批量修改指令最安全、最具表现力的方式。
 
-Value is a first-class construction in LLVM that outlines the data flow among different entities such as instructions. In this section, we introduced how values are represented in LLVM IR and the model of SSA that makes it easier to analyze and transform it. We also learned how to update values in an efficient way and some useful skills for manipulating instructions. This will help build the foundation for you to build more complex and advanced compiler optimizations using LLVM.
+\texttt{Value}是LLVM中的一级构造，它描述了不同实体(如指令)之间的数据流。本节中，我们介绍了如何在LLVM IR中表示值，以及SSA模型，该模型使分析和转换变得更容易。我们还学习了如何以有效的方式更新值，以及一些操作指令的有用技能。这将帮助我们为使用LLVM构建更复杂和高级编译器优化打下基础。
 
-In the next section, we will look at a slightly more complicated IR unit – a loop. We are going to learn how loops are represented in LLVM IR and how to work with them.
+下一节中，我们将研究一个稍微复杂一点的IR单元——循环。我们将学习如何在LLVM IR中表示循环，以及如何使用。
 
 
 

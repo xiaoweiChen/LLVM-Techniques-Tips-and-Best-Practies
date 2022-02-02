@@ -1,26 +1,26 @@
 
-So far, we have learned about several IR units such as modules, functions, basic blocks, and instructions. We have also learned about some logical units such as CFG and call graphs. In this section, we are going to look at a more logical IR unit: a loop.
+到目前为止，我们已经学习了几个IR单元，如模块、功能、基本模块和指令。我们还学习了一些逻辑单元，如CFG和调用图。本节中，我们将看看一个更符合逻辑的IR单元:循环。
 
-Loops are ubiquitous constructions that are heavily used by programmers. Not to mention that nearly every programming language contains this concept, too. A loop repeatedly executes a certain number of instructions multiple times, which, of course, saves programmers lots of effort from repeating that code by themselves. However, if the loop contains any inefficient code – for example, a time-consuming memory load that always delivers the same value – the performance slowdown will also be magnified by the number of iterations.
+循环是程序员经常使用的结构，更不用说几乎每一种编程语言也包含这个概念。循环重复执行一定数量的指令多次，这为程序员节省了大量自己重复代码的工作。但是，如果循环包含任何效率低下的代码——耗时的内存负载总是传递相同的值——性能下降也会随着迭代的次数而放大。
 
-Therefore, it is the compiler's job to eliminate as many flaws as possible from a loop. In addition to removing suboptimal code from loops, since loops are on the critical path of the runtime's performance, people have always been trying to further optimize them with special hardware-based accelerations; for example, replacing a loop with vector instructions, which can process multiple scalar values in just a few cycles. In short, loop optimization is the key to generating faster, more efficient programs. This is especially important in the high-performance and scientific computing communities. 
+因此，编译器的工作就是从循环中消除尽可能多的缺陷。除了从循环中移除次优代码，因为循环在运行时性能的关键路径上，人们一直试图通过特殊的基于硬件的加速来进一步优化它们，例如：用向量指令替换循环，可以在几个周期内处理多个标量值。简而言之，循环优化是生成更快、更高效程序的关键。这在高性能和科学计算社区中尤为重要。
 
-In this section, we are going to learn how to process loops with LLVM. We will try to tackle this topic in two parts:
+本节中，我们将学习如何使用LLVM处理循环。我们将尝试通过两个部分来解决这个问题:
 
 \begin{itemize}
-\item Learning about loop representation in LLVM
-\item Learning about loop infrastructure in LLVM
+\item LLVM中的循环表示
+\item LLVM中的循环设施
 \end{itemize}
 
-In LLVM, loops are slightly more complicated than other (logical) IR units. Therefore, we will learn about the high-level concept of a loop in LLVM and its terminologies first. Then, in the second part, we are going to get our hands on the infrastructure and tools that are used for processing loops in LLVM.
+在LLVM中，循环比其他(逻辑)IR单元稍微复杂一些。因此，我们将首先了解LLVM中循环的高级概念及其术语。然后，第二部分中，我们将接触LLVM中用于处理循环的设施和工具。
 
-Let's start with the first part.
+让我们从第一部分开始。
 
-\subsubsubsection{10.4.1\hspace{0.2cm}Learning about loop representation in LLVM}
+\subsubsubsection{10.4.1\hspace{0.2cm}LLVM中的循环表示}
 
-A loop is represented by the Loop class in LLVM. This class captures any control flow structure that has a back edge from an enclosing basic block in one of its predecessor blocks. Before we dive into its details, let's learn how to retrieve a Loop instance.
+在LLVM中，循环由\texttt{Loop}类表示。这个类可以捕获任何控制流结构，该结构具有来自前块中的封闭基本块的后边[译者：这里的描述有点绕，可以看一下图10.8。]。在深入其细节之前，让我们先学习如何检索\texttt{Loop}实例。
 
-As we mentioned previously, a loop is a logical IR unit in LLVM IR. Namely, it is derived (or calculated) from physical IR units. In this case, we need to retrieve the calculated Loop instances from AnalysisManager – which was first introduced in Chapter 9, Working with PassManager and AnalysisManager. Here is an example showing how to retrieve it in a Pass function:
+在LLVM IR中，循环是一个逻辑IR单元。也就是说，是从物理IR单位推导(或计算)出来的。这样，我们需要从\texttt{AnalysisManager}中检索计算出的循环实例。下面是如何在\texttt{Pass}函数中检索\texttt{Loop}的例子:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/Analysis/LoopInfo.h"
@@ -36,82 +36,82 @@ PreservedAnalyses run(Function &F, FunctionAnalysisManager
 }
 \end{lstlisting}
 
-LoopAnalysis is an LLVM analysis class that provides us with a LoopInfo instance, which includes all the Loop instances in a Function. We can iterate through a LoopInfo instance to get an individual Loop instance, as shown in the preceding code.
+\texttt{LoopAnalysis}是一个LLVM分析类，为我们提供了一个\texttt{LoopInfo}实例，包含了一个\texttt{Function}中的所有\texttt{Loop}实例。我们可以遍历一个\texttt{LoopInfo}实例，以获得一个单独的\texttt{Loop}实例。
 
-Now, let's look into a Loop instance.
+现在，让我们了解一下\texttt{Loop}实例。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Learning about loop terminologies}
+\textbf{循环术语}
 
-A Loop instance contains multiple BasicBlock instances for a particular loop. LLVM assigns a special meaning/name to some of these blocks, as well as the (control flow) edges among them. The following diagram shows this terminology:
+一个循环实例包含一个特定循环的多个\texttt{BasicBlock}实例。LLVM为其中一些块以及它们之间的(控制流)边分配了一个特殊的含义/名称。下图显示了这个术语:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter10/images/8.png}\\
-Figure 10.8 – Structure and terminology used in a loop
+\includegraphics[width=0.8\textwidth]{content/3/chapter10/images/8.png}\\
+图10.8 - 循环中的结构和术语
 \end{center}
 
-Here, every rectangle is a BasicBlock instance. However, only blocks residing within the dash line area are included in a Loop instance. The preceding diagram also shows two important control flow edges. Let's explain each of these terminologies in detail:
+这里，每个矩形都是一个\texttt{BasicBlock}实例。但是，只有在虚线区域内的块才包含在\texttt{Loop}实例中。上图还显示了两个重要的控制流边。让我们详细解释这些术语:
 
 \begin{itemize}
-\item Header Block: This block marks the entry to a loop. Formally speaking, it dominates all the blocks in the loop. It is also the destination of any back edge.
+\item \textbf{Header Block}: 这个块标记了一个循环的入口。正式地说，它支配着循环中的所有块，也是Back Edge的目的地。
 
-Pre-Header Block: Though it is not part of a Loop, it represents the block that has the header block as the only successor. In other words, it's the only predecessor of the header block.
+\item \textbf{Pre-Header Block}: 虽然不是循环的一部分，但表示的是头块作为唯一的后续块。换句话说，它是Header Block的唯一前身。
 
-The existence of a pre-header block makes it easier to write some of the loop transformations. For instance, when we want to hoist an instruction to the outside of the loop so that it is only executed once before entering the loop, the pre-header block can be a good place to put this. If we don't have a pre-header block, we need to duplicate this instruction for every predecessor of the header block.
+Pre-header块的存在使得编写一些循环转换变得更容易，例如：当我们想要将一条指令提升到循环的外部，以便它在进入循环之前只执行一次时，Pre-header块可是放置这个指令的好地方。如果没有Pre-header块，则需要为Pre-header块的每一个前身复制这条指令。
 
-\item Back Edge: This is the control flow edge that goes from one of the blocks in the loop to the header block. A loop might contain several back edges.
+\item \textbf{Back Edge}: 这是从循环中的一个块到报头块的控制流边。一个循环可能包含几个Back Edge。
 
-\item Latch Block: This is the block that sits at the source of a back edge.
+\item \textbf{Latch Block}: 位于后边的源块。
 
-\item Exiting Block and Exit Block: These two names are slightly confusing: the exiting block is the block that has a control flow edge – the Exit Edge – that goes outside the loop. The other end of the exit edge, which is not part of the loop, is the exit block. A loop can contain multiple exit blocks (and exiting blocks).
+\item \textbf{Exiting Block和Exit Block}: 这两个名称有点令人困惑:Exiting Block是具有控制流边(Exit Edge)的块，从而跳出循环。出口边的另一端，不属于循环的一部分，是Exit Block。一个循环可以包含多个退出块(和出口块)。
 \end{itemize}
 
-These are the important terminologies for blocks in a Loop instance. In addition to the control flow structure, compiler engineers are also interested in a special value that might exist in a loop: the induction variable. For example, in the following snippet, the i variable is the induction variable:
+这些是循环实例中的块的重要术语。除了控制流结构之外，编译器工程师还对可能存在于循环中的一个特殊值感兴趣:\textbf{引导变量}。例如，在下面的代码片段中，变量\texttt{i}是引导变量:
 
 \begin{lstlisting}[style=styleCXX]
 for (int i = 0; i < 87; ++i){…}
 \end{lstlisting}
 
-A loop might not contain an induction variable – for example, many while loops in C/C++ don't have one. Also, it's not always easy to find out about an induction variable, nor its boundary – the start, end, and stopping values. We will show some of the utilities in the next section to help you with this task. But before that, we are going to discuss an interesting topic regarding the canonical form of a loop.
+循环可能不包含引导变量——C/C++中的许多while循环都没有引导变量。此外，要找出一个引导变量，以及它的边界(开始、结束和停止值)并不总是很容易。下一节中，我们将展示一些工具来帮助我们完成这项任务。但在那之前，我们将讨论一个有趣的话题，关于循环的标准形式。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Understanding canonical loops}
+\textbf{规范循环}
 
-In the previous section, we learned several pieces of terminology for loops in LLVM, including the pre-header block. Recall that the existence of a pre-header block makes it easier to develop a loop transformation because it creates a simpler loop structure. Following this discussion, there are other properties that make it easier for us to write loop transformations, too. If a Loop instance has these nice properties, we usually call it a canonical loop. The optimization pipeline in LLVM will try to "massage" a loop into this canonical form before sending it to any of the loop transformations.
+前一节中，我们了解了LLVM中循环的几个术语，包括Pre-header前块。Pre-header块的存在使开发循环转换变得更容易，因为它创建了更简单的循环结构。在这个讨论之后，还有其他一些属性可以让我们更容易地编写循环转换。如果循环实例有这些漂亮的属性，我们通常称它为\textbf{规范循环}。LLVM中的优化流水在将一个循环发送到任何循环转换之前，会尝试将其“更改”成这种规范形式。
 
-Currently, LLVM has two canonical forms for Loop: a simplified form and a rotated form. The simplified form has the following properties:
+目前，LLVM有两种\texttt{Loop}形式:\textbf{简化}和\textbf{旋转}。简化后具有以下属性:
 
 \begin{itemize}
-\item A pre-header block.
-\item A single back edge (and thus a single latch block).
-\item The predecessors of the exit blocks come from the loop. In other words, the header block dominates all the exit blocks.
+\item 一个Pre-header块。
+\item 单一的Back Edge(因此只有单个Latch Block)。
+\item 退出块的前身来自循环。换句话说，Header区块支配着所有的出口块。
 \end{itemize}
 
-To get a simplified loop, you can run LoopSimplfyPass over the original loop. In addition, you can use the Loop::isLoopSimplifyForm method to check if a Loop is in this form.
+要获得一个简化的循环，可以在原始循环上运行\texttt{LoopSimplfyPass}。此外，可以使用\texttt{Loop::is\\LoopSimplifyForm}方法来检查是否存在\texttt{Loop}。
 
-The benefits of having a single back edge include that we can analyze recursive data flow – for instance, the induction variable – more easily. For the last property, if every exit block is dominated by the loop, we can have an easier time "sinking" instructions below the loop without any interference from other control flow paths.
+拥有单一Back Edge的好处包括，可以更容易地分析递归数据流——引导变量。对于最后一个属性，如果每个出口块都由循环控制，那么可以更容易地在不受其他控制流路径干扰的情况下将指令“嵌入”到循环指令中。
 
-Let's look at the rotated canonical form. Originally, the rotated form was not a formal canonical form in LLVM's loop optimization pipeline. But with more and more loop passes depending on it, it has become the "de facto" canonical form. The following diagram shows what this form looks like:
+让我们看看旋转后的形式。最初，在LLVM的循环优化管道中，旋转形式并不是正式的规范形式。但是随着越来越多的循环传递依赖于它，其就成为“事实上的”规范形式。下面的图表显示了旋转循环的样子:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
 \includegraphics[width=0.9\textwidth]{content/3/chapter10/images/9.png}\\
-Figure 10.9 – Structure and terminology of a rotated loop
+图10.9  -旋转环路的结构和术语
 \end{center}
 
-To get a rotated loop, you can run LoopRotationPass over the original loop. To check if a loop is rotated, you can use the Loop::isRotatedForm method.
+要获得一个旋转的循环，可以在原始循环上运行\texttt{LoopRotationPass}。要检查一个循环是否旋转，可以使用\texttt{loop::isRotatedForm}方法。
 
-This rotated form is basically transforming an arbitrary loop into a do\{…\}while(…) loop (in C/C++) with some extra checks. More specifically, let's say we have the following for loop:
+这种旋转后的形式基本上是，将任意循环转换为带有一些额外检查的\texttt{do{…}while(…)}循环(在C/C++中)。假设我们有以下\texttt{for}循环:
 
 \begin{lstlisting}[style=styleCXX]
 // `N` is not a constant
 for (int i = 0; i < N; ++i){…}
 \end{lstlisting}
 
-Loop rotation effectively turns it into the following code:
+循环旋转有效地将其转换为以下代码:
 
 \begin{lstlisting}[style=styleCXX]
 if (i < N) {
@@ -122,27 +122,26 @@ if (i < N) {
 }
 \end{lstlisting}
 
-The highlighted boundary check in the preceding code is used to ensure that the loop won't execute if the i variable is out of bounds at the very beginning. We also call this check the loop guard, as shown in the preceding diagram.
+前面代码中显示的边界检查用于确保\texttt{i}变量在一开始就超出边界时，则不执行循环。我们也称其为检查\textbf{循环保护}，如上图所示。
 
-In addition to the loop guard, we also found that a rotated loop has a combined header, latch, and exiting block. The rationale behind this is to ensure that every instruction in this block has the same execution count. This is a useful property for compiler optimizations such as loop vectorization.
+除了循环保护，我们还发现旋转循环有一个合并的头、锁存器和退出块。这样做的基本原理是为了确保这个块中的每个指令都有相同的执行计数。这对于编译器优化(如循环向量化)是一个有用的属性。
 
-With that, we have learned about the various loop terminologies and the definition of canonical loops in LLVM. In the next section, we will learn about some APIs that can help you inspect some of these properties and process loops in an efficient way
+在此基础上，我们了解了LLVM中的各种循环术语和规范循环的定义。在下一节中，我们将学习一些API，可以帮助我们以一种有效的方式检查这些属性和处理循环。
 
-\subsubsubsection{10.4.2\hspace{0.2cm}Learning about loop infrastructure in LLVM}
+\subsubsubsection{10.4.2\hspace{0.2cm}LLVM中的循环设施}
 
-In the Learning about loop representation in LLVM section, we learned about the high-level construction and important properties of a loop in LLVM IR. In this section, we are going to see what APIs are available for us to inspect those properties and further transform the loops. Let's start our discussion from the loop pass – the LLVM pass that applies to Loop instances.
+在LLVM中了解循环表示的章节节中，我们学习了LLVM IR中循环的高层结构和重要属性。本节中，我们将看到有哪些API可用来检查这些属性，并进一步转换循环。让我们从循环传递开始讨论——应用于\texttt{Loop}实例的LLVM Pass。
 
-In Chapter 9, Working with PassManager and AnalysisManager, we learned that there are different kinds of LLVM pass that work on different IR units – for instance, we have seen passes for Function and Module. These two kinds of passes have a similar function signature for their run method – the main entry point of an LLVM pass – as shown here:
+在第9章我们了解到有不同种类的LLVM Pass在不同的IR单元上工作——函数和模块的Pass。这两种Pass的运行方法有一个类似的函数签名——LLVM Pass的主要入口点——如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 PreservedAnalyses run(<IR unit class> &Unit,
 					  <IR unit>AnalysisManager &AM);
 \end{lstlisting}
 
-Both of their run methods take two arguments – a reference to the IR unit instance and an AnalysisManager instance.
+所有\texttt{run}方法都有两个参数—对IR单元实例和\texttt{AnalysisManager}实例的引用。
 
-In contrast, a loop pass has a slightly more complicated run method signature, as
-shown here:
+相反，循环Pass有一个稍微复杂一点的\texttt{run}方法签名，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 PreservedAnalyses run(Loop &LP, LoopAnalysisManager &LAM,
@@ -150,16 +149,16 @@ PreservedAnalyses run(Loop &LP, LoopAnalysisManager &LAM,
 					  LPMUpdater &U);
 \end{lstlisting}
 
-The run method takes four arguments, but we already know about the first two. Here are the descriptions for the other two:
+\texttt{run}方法有四个参数，但前两个我们已经知道了。以下是对另外两个的描述:
 
 \begin{itemize}
-\item The third argument, LoopStandardAnalysisResults, provides you with some analysis data instances, such as AAResults (alias analysis data), DominatorTree, and LoopInfo. These analyses are extensively used by many loop optimizations. However, most of them are managed by either FunctionAnalysisManager or ModuleAnalysisManager. This means that, originally, developers needed to implement more complicated methods – for example, using the OuterAnalysisManagerProxy class – to retrieve them. The LoopStandardAnalysisResults instance basically helps you retrieve this analysis data ahead of time.
+\item 第三个参数，\texttt{LoopStandardAnalysisResults}提供了一些分析数据实例，例如：\texttt{AAResults}(别名分析数据)、\texttt{DominatorTree}和\texttt{LoopInfo}。这些分析可以在许多循环优化中使用。然而，其中的大多数是由\texttt{FunctionAnalysisManager}或\texttt{ModuleAnalysisManager}管理。这意味着，开发人员需要实现更复杂的方法——使用\texttt{OuterAnalysisManagerProxy}类——来检索它们。\texttt{LoopStandardAnalysisResults}实例可以帮助我们提前检索这些分析数据。
 
-\item The last argument is used for notifying PassManager of any newly added loops so that it can put those new loops into the queue before processing them later. It can also tell the PassManager to put the current loop into the queue again.
+\item 最后一个参数用于通知\texttt{PassManager}新添加的循环，以便可以在以后处理这些新循环之前，将它们放入队列中。它还可以告诉\texttt{PassManager}将当前循环再次放入队列中。
 
 \end{itemize}
 
-When we are writing a pass, we will want to use the analysis data provided by AnalysisManager – in this case, it is the LoopAnalysisManager instance. LoopAnalysisManager has a similar usage to other versions of AnalysisManager (FunctionAnalysisManager, for example) we learned about in the previous chapter. The only difference is that we need to supply an additional argument to the getResult method. Here is an example:
+当我们编写一个Pass时，我们想要使用\texttt{AnalysisManager}提供的分析数据——在本例中，是\texttt{LoopAnalysisManager}实例。\texttt{LoopAnalysisManager}与前一章中了解的\texttt{AnalysisManager}(例如：\texttt{FunctionAnalysisManager})的其他版本有类似的用法。唯一的区别是，我们需要为\texttt{getResult}方法提供一个参数。下面是例子:
 
 \begin{lstlisting}[style=styleCXX]
 PreservedAnalyses run(Loop &LP, LoopAnalysisManager &LAM,
@@ -171,30 +170,29 @@ PreservedAnalyses run(Loop &LP, LoopAnalysisManager &LAM,
 }
 \end{lstlisting}
 
-LoopNest is the analysis data that's generated by LoopNestAnalysis. (We will talk about both shortly in the Dealing with nested loops section.)
+\texttt{LoopNest}是由\texttt{LoopNestAnalysis}生成的分析数据。(我们将在处理嵌套循环一节中讨论这两种情况。)
 
-As shown in the previous snippet, LoopAnalysisManager::getResult takes another LoopStandarAnalysisResults type argument, in addition to the Loop
-instance.
+如前面的代码所示，\texttt{LoopAnalysisManager::getResult}接受另一个\texttt{LoopStandarAnalysisResults}类型参数(除了\texttt{Loop}实例之外)。
 
-Except for having different a run method signature and a slightly different usage of LoopAnalysisManager, developers can build their loop passes in the same way as other kinds of passes. Now that we've looked at the foundation provided by loop pass and AnalysisManager, it's time to look at some specialized loops. The first one we are going to introduce is the nested loop.
+除了不同的签名和略微不同的\texttt{LoopAnalysisManager}用法外，开发人员可以用与其他类型的Pass相同的方式构建他们的循环Pass。现在我们已经了解了循环Pass和AnalysisManager所提供的基础，现在是时候了解一些特殊的循环了。我们首先要介绍的是嵌套循环。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Dealing with nested loops}
+\textbf{处理嵌套循环}
 
-So far, we have been talking about loops with only one layer. However, nested loops – loops with other loop(s) enclosed in them – are also common in real-world scenarios. For example, most of the matrix multiplication implementations require at least two layers of loops.
+到目前为止，一直在讨论只有一个层的循环。然而，嵌套循环——其中包含其他循环的循环——在实际场景中也很常见，例如：大多数矩阵乘法实现至少需要两层循环。
 
-Nested loops are usually depicted as a tree – called a loop tree. In a loop tree, every node represents a loop. If a node has a parent node, this means that the corresponding loop is enclosed within the loop being modeled by the parent. The following diagram shows an example of this:
+嵌套循环通常被描述为树——称为循环树。在循环树中，每个节点代表一个循环。如果一个节点有一个父节点，这意味着对应的循环被包含在父节点所创建的循环中。下面的图表展示了一个例子:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter10/images/10.png}\\
-Figure 10.10 – A loop tree example
+\includegraphics[width=0.8\textwidth]{content/3/chapter10/images/10.png}\\
+图10.10 - 一棵循环树
 \end{center}
 
-In the preceding diagram, loops j and g are enclosed within loop i, so they are both child nodes of loop i in the loop tree. Similarly, loop k – the innermost loop – is modeled as the child node of loop j in the tree. 
+上图中，循环\texttt{j}和\texttt{g}包围在循环\texttt{i}中，所以它们都是循环树中循环\texttt{i}的子节点。类似地，循环\texttt{k}——最内部的循环——是树中循环\texttt{j}的子节点。
 
-The root of a loop tree also represents a top-level loop in a Function. Recall that, previously, we learned how to retrieve all Loop instances in a Function by iterating through the LoopInfo object – each of the Loop instances that were retrieved in this way are top-level loops. For a given Loop instance, we can retrieve its subloops at the next layer in a similar way. Here is an example:
+循环树的根也表示函数中的顶级循环。在前面，我们学习了如何通过遍历\texttt{LoopInfo}对象来检索函数中的所有\texttt{Loop}实例——以这种方式检索的每个\texttt{Loop}实例都是顶级循环。对于给定的\texttt{Loop}实例，我们可以以类似的方式在下一层检索它的子循环。下面是一个例子:
 
 \begin{lstlisting}[style=styleCXX]
 // `LP` has the type of `Loop&`
@@ -203,12 +201,12 @@ for (Loop *SubLP : LP) {
 }
 \end{lstlisting}
 
-Note that the preceding snippet only traversed the subloops at the next level, rather than all the descendant subloops. To traverse all descendant subloops in a tree, you have two options:
+注意，前面的代码只遍历了下一层的子循环，而不是所有的后代循环。要遍历树中的所有后代循环，有两个选项:
 
 \begin{itemize}
-\item By using the Loop::getLoopsInPreorder() method, you can traverse all the descendant loops of a Loop instance in a pre-ordered fashion.
+\item 使用\texttt{Loop::getLoopsInPreorder()}方法，可以以预先排序的方式遍历一个\texttt{Loop}实例的所有后代循环。
 
-\item In the Iterating different IR units section, we have learned what GraphTraits is and how LLVM uses it for graph traversal. It turns out that LLVM also has a  default implementation of GraphTraits for the loop tree. Therefore, you can traverse a loop tree with existing graph iterators in LLVM, such as post-ordering and depth-first, to name a few. For example, the following code tries to traverse a loop tree rooted at RootL in a depth-first fashion:
+\item 迭代不同IR单元一节中，我们了解了什么是\texttt{GraphTraits}，以及LLVM如何使用它来遍历图。LLVM也为循环树提供了一个默认的\texttt{GraphTraits}实现。因此，可以使用LLVM中现有的图迭代器遍历循环树，例如：后排序和深度优先等。下面的代码试图以深度优先的方式遍历一个以\texttt{RootL}为根的循环树:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/Analysis/LoopInfo.h"
@@ -220,20 +218,20 @@ for (Loop *L : depth_first(RootL)) {
 }
 \end{lstlisting}
 
-With the help of GraphTraits, we can have more flexibility when it comes to traversing a loop tree.
+在\texttt{GraphTraits}的帮助下，可以更灵活地遍历一个循环树。
 
 \end{itemize}
 
-In addition to dealing with individual loops in a loop tree, LLVM also provides a wrapper class that represents the whole structure – LoopNest. 
+除了在循环树中处理单个循环之外，LLVM还提供了一个包装器类来表示整个结构——\texttt{LoopNest}。 
 
-LoopNest is analysis data that's generated by LoopNestAnalysis. It encapsulates all the subloops in a given Loop instance and provides several "shortcut" APIs for commonly used functionalities. Here are some of the important ones:
+\texttt{LoopNest}是由\texttt{LoopNestAnalysis}生成的分析数据。它将所有子循环封装在一个给定的\texttt{Loop}实例中，并为常用功能提供了几个“快捷”API。以下是一些重要的接口:
 
 \begin{itemize}
-\item getOutermostLoop()/getInnermostLoop(): These utilities retrieve the outer/innermost Loop instances. These are pretty handy because many loop optimizations only apply to either the inner or outermost loop.
+\item \texttt{getOutermostLoop()}/\texttt{getInnermostLoop()}: 这些API可以哟哪里检索最外层/最内层的\texttt{Loop}实例。因为许多循环优化只适用于内部或最外层的循环，所以非常好用。
 
-\item areAllLoopsSimplifyForm()/areAllLoopsRotatedForm(): These useful utilities tell you if all the enclosing loops are in a certain canonical form, as we mentioned in the previous section.
+\item \texttt{areAllLoopsSimplifyForm()}/\texttt{areAllLoopsRotatedForm()}: 这些接口会表明，是否所有的循环都是某种规范形式。
 
-\item getPerfectLoops(…): You can use this to get all the perfect loops in the current loop hierarchy. By perfect loops, we are referring to loops that are nested together without a "gap" between them. Here is an example of perfect loops and non-perfect loops:
+\item \texttt{getPerfectLoops(…)}: 可以使用它来获得当前循环层次结构中的所有完美循环。所谓完美循环，我们指的是嵌套在一起的循环，它们之间没有“间隙”。下面是一个完美循环和非完美循环的例子:
 
 \begin{lstlisting}[style=styleCXX]
 // Perfect loops
@@ -247,35 +245,35 @@ for(int x=…) {
 }
 \end{lstlisting}
 
-In the non-perfect loops example, the foo call site is the gap between the upper and lower loops.
+非完美循环的例子中，\texttt{foo}调用点是上循环和下循环之间的间隙。
 
-Perfect loops are preferrable in many loop optimizations. For example, it's easier to unroll perfectly nested loops – ideally, we only need to duplicate the body of the innermost loop.
+许多循环优化中，完美循环是更好的选择，例如：展开完美嵌套的循环更容易——理想情况下，只需要复制最内层的循环体。
 
 \end{itemize}
 
-With that, you've learned how to work with nested loops. In the next section, we are going to learn about another important topic for loop optimization: induction variables.
+至此，我们已经了解了如何使用嵌套循环。下一节中，我们；了解学习循环优化的另一个重要主题:引导变量。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Retrieving induction variables and their range}
+\textbf{检索引导变量的范围}
 
-The induction variable is a variable that progresses by a certain pattern in each loop iteration. It is the key to many loop optimizations. For example, in order to vectorize a loop, we need to know how the induction variable is used by the array – the data we want to put in a vector – within the loop. The induction variable can also help us resolve the trip count – the total number of iterations – of a loop. Before we dive into the details, the following diagram shows some terminology related to induction variables and where they're located in the loop:
+引导变量是在每次循环迭代中按特定模式前进的变量，是许多循环优化的关键。为了向量化一个循环，我们需要知道在循环中数组如何使用归纳变量——我们想要放入一个向量的数据。引导变量还可以帮助我们解决一个循环的行程计数(迭代的总次数)。在深入了解细节之前，下图展示了一些与引导变量相关的术语，以及它们在循环中的位置:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter10/images/11.png}\\
-Figure 10.11 – Terminology for an induction variable
+\includegraphics[width=0.6\textwidth]{content/3/chapter10/images/11.png}\\
+图10.11 - 引导变量的术语
 \end{center}
 
-Now, let's introduce some APIs that can help you retrieve the components shown in the preceding diagram.
+现在，我们来了解一些API，它们可以帮助我们检索上图中所示的组件。
 
-First, let's talk about the induction variable. The Loop class already provides two convenient methods for retrieving the induction variable: getCanonicalInductionVariable and getInductionVariable. Both methods return a PHINode instance as the induction variable (if there are any). The first method can only be used if the induction variable starts from zero and only increments by one on each iteration. On the other hand, the second method can handle more complicated cases, but requires a ScalarEvolution instance as the argument.
+首先，来讨论一下引导变量。\texttt{Loop}类已经提供了两个方便的方法来检索引导变量:\texttt{getCanoni calInductionVariable}和\texttt{getInductionVariable}。这两个方法都返回一个\texttt{PHINode}实例作为引导变量(如果有的话)。第一种方法只能在引导变量从0开始并且每次迭代只增加1的情况下使用。另一方面，第二种方法可以处理更复杂的情况，但需要一个\texttt{ScalarEvolution}实例作为参数。
 
-ScalarEvolution is an interesting and powerful framework in LLVM. Simply put, it tries to track how values change – for example, through arithmetic operation – over the program path. Putting this into the context of loop optimization, it is used to capture recurrence value-changing behaviors in the loop, which has a strong relationship with the induction variable.
+\texttt{ScalarEvolution}是LLVM中一个有趣且强大的框架。简单地说，它试图跟踪值如何变化——通过算术运算——在程序路径上。将此放到循环优化的上下文中，可用于捕获循环中的递归值改变行为，这与引导变量有很强的关系。
 
-To find out more about the induction variable's behavior in a loop, you can retrieve an InductionDescriptor instance via Loop::getInductionDescriptor. An InductionDescriptor instance provides information such as the initial value, the step value, and the instruction that updates the induction variable at each iteration. The Loop class also provides another similar data structure for realizing the boundaries of the induction variable: the Loop::LoopBounds class. LoopBounds not only provides the initial and step values of the induction variable, but also the prospective ending value, as well as the predicate that's used for checking the exit condition. You can retrieve a LoopBounds instance via the Loop::getBounds method.
+要了解更多关于循环中引导变量的行为，可以通过\texttt{loop::getInductionDescriptor}检索\texttt{InductionDescriptor}实例。\texttt{InductionDescriptor}实例提供了一些信息，比如：初始值、步长值，以及在每次迭代时更新引导变量的指令。\texttt{Loop}类还提供了另一个类似的数据结构，用于实现引导变量的边界:\texttt{Loop::LoopBounds}类。\texttt{LoopBounds}不仅提供了引导变量的初始值和步长值，还提供了预期的结束值，以及用于检查退出条件的谓词。可以通过\texttt{Loop::getBounds}方法获取\texttt{LoopBounds}实例。
 
-Loops are crucial for a program's runtime performance. In this section, we learned how loops are represented in LLVM IR and how to work with them. We also looked at their high-level concepts and various practical APIs for retrieving the desired loop properties. With this knowledge, you are one step closer to creating a more effective, aggressive loop optimization and gaining even higher performance from your target applications.
+循环对程序的运行时性能至关重要。本节中，我们了解了如何在LLVM IR中表示循环，以及如何使用它们。我们还研究了它们的高级概念和各种用于检索所需循环属性的API。有了这些知识，我们就离创建更有效、更积极的循环优化和从目标应用程序获得更高的性能更近了一步。
 
 
 

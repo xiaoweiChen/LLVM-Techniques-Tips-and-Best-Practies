@@ -1,18 +1,18 @@
-The tools we'll need in this chapter are the opt command-line utility and clang. Please build them using the following command:
+本章中需要的工具是\texttt{opt}命令行程序和\texttt{clang}。请使用以下命令构建它们:
 
 \begin{tcblisting}{commandshell={}}
 $ ninja opt clang
 \end{tcblisting}
 
-Most of the code in this chapter can be implemented inside LLVM pass – and the pass plugin – as introduced in Chapter 9, Working with PassManager and AnalysisManager. In addition, please install the Graphviz tool. You can consult the following page for an installation guide for your system: \url{https://graphviz.org/download}. On Ubuntu, for instance, you can install that package via the following command:
+本章中的大部分代码都可以在LLVM Pass和Pass插件中实现(如第9章)。另外，请安装Graphviz工具。可以参考以下页面获取系统的安装指南:\url{https://graphviz.org/download}。例如，在Ubuntu上，可以通过以下命令安装该包:
 
 \begin{tcblisting}{commandshell={}}
 $ sudo apt install graphviz
 \end{tcblisting}
 
-We will use a command-line tool – the dot command – provided by Graphviz to visualize the control flow of a function.  
+我们将使用Graphviz提供的命令行工具——\texttt{do}t——来可视化函数的控制流。
 
-The code example mentioned in this chapter can be implemented inside LLVM pass, if not specified otherwise.
+如果没有另外指定的话，本章中提到的代码示例可以在LLVM Pass中实现。
 
 
 
