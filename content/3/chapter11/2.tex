@@ -1,6 +1,6 @@
-In software development, there are many ways to diagnose a bug—for instance, using a debugger, inserting a sanitizer into your program (to catch invalid memory access, for example), or simply using one of the simplest yet most effective ways: adding print statements. While the last option doesn't sound really smart, it is actually pretty useful in many cases where other options cannot unleash their full potential (for example, release mode binaries with poor debug information quality or multithread programs).
+在软件开发中，有许多方法可以诊断错误——例如，使用调试器、在程序中插入杀毒器(例如，捕获无效的内存访问)，或者简单地使用最简单，但最有效的方法之一:添加打印语句。虽然最后一个选项听起来不是很聪明，但在其他选项不能充分发挥其潜力的许多情况下(例如，调试信息质量较差的发布模式二进制文件或多线程程序)，其实非常有用。
 
-LLVM provides a small utility that not only helps you to print out debug messages but also filters which messages to show. Let's say we have an LLVM Pass, SimpleMulOpt, which replaces multiplication by power-of-two constants with left-shifting operations (which is what we did in the last section of the previous chapter, Processing LLVM IR). Here is part of its run method:
+LLVM提供了一个小工具，不仅可以打印调试消息，还过滤要显示的消息。假设我们有一个LLVM Pass——\texttt{SimpleMulOpt}——用左移操作替换2的幂次乘法(这是我们在前一章处理LLVM IR的最后一节中所完成的)。下面是它的运行方法的部分实现:
 
 \begin{lstlisting}[style=styleCXX]
 PreservedAnalyses
@@ -19,9 +19,9 @@ SimpleMulOpt::run(Function &F, FunctionAnalysisManager &FAM) {
 }
 \end{lstlisting}
 
-The preceding code iterates through all instructions in the given function before looking for instructions that represent arithmetic multiplication. If there are any, the Pass will then work with the LHS and RHS operands (which appear in the rest of the code—these are not shown here).
+前面的代码遍历给定函数中的所有指令，然后查找表示算术乘法的指令。如果有，Pass将与LHS和RHS操作数一起工作(它们出现在代码的其余部分中——这里没有显示)。
 
-Let's assume that we want to print out the operand variables during our development. The most naïve way will be by using our old friend errs(), which streams arbitrary messages to stderr, as shown in the following code snippet:
+假设我们想在开发过程中打印出操作数变量。大多数原生的方法是使用我们的“老朋友”\texttt{errs()}，它可以将任意消息发送到\texttt{stderr}。如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 // (extracted from the previous snippet)
@@ -35,9 +35,9 @@ RHS->printAsOperand(errs());
 …
 \end{lstlisting}
 
-The printAsOperand used in the preceding code snippet prints the textual representation of a Value to the given stream (errs(), in this case).
+代码中使用的\texttt{printAsOperand}将\texttt{Value}的文本表示输出到给定流中(在本例中为\texttt{errs()})。
 
-Everything looks normal, except the fact that these messages will be printed out anyway even in a production environment, which is not what we want. Either we need to remove these codes before we ship our products, adding some macro guard around these codes (for example, \#ifndef NDEBUG), or we can use the debug utility provided by LLVM. Here is an example of this:
+一切看起来都很正常，除了这些消息无论如何都会被打印出来。不过是在生产环境中，这不是我们想要的。要么需要在交付产品之前删除这些代码，要么在这些代码周围添加一些宏保护(例如，\texttt{\#ifndef NDEBUG})，要么可以使用LLVM提供的调试工具。下面是一个例子:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/Support/Debug.h"
@@ -52,40 +52,40 @@ LLVM_DEBUG(RHS->printAsOperand(dbgs()));
 …
 \end{lstlisting}
 
-The preceding code is basically doing the following three things:
+上面的代码基本上做了以下三件事:
 
 \begin{itemize}
-\item Replacing any usage of errs() with dbgs(). These two streams are basically doing the same thing, but the latter one will add a nice banner (Debug Log Output) to the output message.
+\item 用\texttt{dbgs()}替换\texttt{errors()}。这两个流基本上做的是相同的事情，但后者将向输出消息添加一个漂亮的格式(调试日志输出)。
 
-\item Wrapping all lines related to debug printing with the LLVM\_DEBUG(…) macro function. The use of this macro ensures that the enclosing line is only compiled in development mode. It also encodes the debug message category, which we will introduce shortly.
+\item 使用\texttt{LLVM\_DEBUG(…)}宏函数包装所有与调试打印相关的行。使用这个宏可以确保只在开发模式下编译封闭行。它还对调试消息类别进行编码，稍后我们将介绍这个类别。
 
-\item Before using any LLVM\_DEBUG(…) macro functions, please make sure you define DEBUG\_TYPE to the desired debug category string (simple-mul-opt, in this case).
+\item 使用\texttt{LLVM\_DEBUG(…)}宏函数之前，请确保您将\texttt{DEBUG\_TYPE}定义为所需的调试类别字符串(本例中为\texttt{simple-mult-opt})。
 
 \end{itemize}
 
-In addition to the aforementioned code modification, we also need to use an additional command-line flag, -debug, with opt to print those debug messages. Here is an example of this:
+除了上述代码修改之外，我们还需要使用一个额外的命令行标志\texttt{-debug}，可以选择打印那些调试消息。下面是一个例子:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -O3 -debug -load-pass-plugin=… …
 \end{tcblisting}
 
-But then, you'll find the output to be pretty noisy. There are tons of debug messages from other LLVM Passes. In this case, we're only interested in the messages from our Pass.
+但是，会发现输出非常嘈杂。有大量来自其他LLVM PAss的调试消息。在本例中，我们只对来自我们Pass的消息感兴趣。
 
-To filter out unrelated messages, we can use the -debug-only command-line flag. Here is an example of this:
+要过滤掉不相关的消息，可以使用\texttt{-debug-only}命令行标志。下面是一个例子:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -O3 -debug-only=simple-mul-opt -load-pass-plugin=… …
 \end{tcblisting}
 
-The value after -debug-only is the DEBUG\_TYPE value we defined in the previous code snippet. In other words, we can use DEBUG\_TYPE defined by each Pass to filter the desired debug messages. We can also select multiple debug categories to print. For instance, check out the following command:
+\texttt{-debug-only}后面的值是我们在前面的代码片段中定义的\texttt{DEBUG\_TYPE}值。换句话说，我们可以使用由每个Pass定义\texttt{的DEBUG\_TYPE}来过滤所需的调试消息。我们还可以选择要打印的多个调试类别，使用以下命令:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -O3 -debug-only=sroa,simple-mul-opt -load-pass-plugin=… …
 \end{tcblisting}
 
-This command not only prints debug messages from our SimpleMulOpt Pass, but also those coming from the SROA Pass—an LLVM Pass included in the O3 optimization pipeline.
+这个命令不仅打印来自\texttt{SimpleMulOpt} Pass的调试消息，还打印来自\texttt{SROA} Pass的调试消息——包含在\texttt{O3}优化管道中的LLVM Pass。
 
-In addition to defining a single debug category (DEBUG\_TYPE) for an LLVM Pass, you are in fact free to use as many categories as you like inside a Pass. This is useful, for instance, when you want to use separate debug categories for different parts of a Pass. For example, we can use separate categories for each of the operands in our SimpleMulOpt Pass. Here is how we can do this:
+除了为LLVM Pass定义一个单独的调试类别(\texttt{DEBUG\_TYPE})之外，实际上可以自由地在Pass中使用任意多的类别，例如：当希望对Pass的不同部分使用单独的调试类别时，这是很有用的。我们可以在\texttt{SimpleMulOpt} Pass中为每个操作数使用单独的类别。可以这样做:
 
 \begin{lstlisting}[style=styleCXX]
 …
@@ -100,9 +100,9 @@ DEBUG_WITH_TYPE("simple-mul-opt-rhs",
 …
 \end{lstlisting}
 
-DEBUG\_WITH\_TYPE is a special version of LLVM\_DEBUG. It executes code at the second argument, with the first argument as the debug category, which can be different from the currently defined DEBUG\_TYPE value. In the preceding code snippet, in addition to printing Found a multiplication instruction using the original simplemul-opt category, we are using simple-mul-opt-lhs to print messages related to the left-hand-side (LHS) operand and use simple-mul-opt-rhs to print messages for the other operand. With this feature, we can have a finer granularity to select debug message categories via the opt command.
+\texttt{DEBUG\_WITH\_TYPE}是\texttt{LLVM\_DEBUG}的特殊版本。在第二个参数处执行代码，第一个参数作为调试类别，它可以不同于当前定义的\texttt{DEBUG\_TYPE}值。前面的代码中，除了使用\texttt{simplemul-opt}类别打印\texttt{Found a multiplication instruction}外，我们还使用\texttt{simple-multi-opt-lhs}打印与\textbf{左侧(LHS)}操作数相关的消息，并使用\texttt{simple-mul-opt-rhs}打印其他操作数的消息。有了这个特性，就可以更细粒度地通过\texttt{opt}命令选择调试消息类别了。
 
-You have now learned how to use the utility provided by LLVM to print out debug messages in the development environment only, and how to filter them if needed. In the next section, we are going to learn how to collect key statistics while running an LLVM Pass.
+现在，已经了解了如何使用LLVM提供的实用程序仅在开发环境中打印调试消息，以及如何在需要时对它们进行过滤。下一节中，我们将了解如何在运行LLVM Pass时收集关键统计信息。
 
 
 

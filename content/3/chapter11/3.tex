@@ -1,21 +1,21 @@
 
-As mentioned in the previous section, a compiler is a complex piece of software. Collecting statistical numbers—for example, the number of basic blocks processed by a specific optimization—is one of the easiest and most efficient ways to get a quick portrait on the runtime behaviors of a compiler.
+如前一节所述，编译器是一种复杂的软件。收集统计数字(例如，特定优化处理的基本块的数量)是快速了解编译器运行时行为的最简单和最有效的方法。
 
-There are several ways to collect statistics in LLVM. In this section, we are going to learn three of the most common and useful options for doing this, and these methods are outlined here:
+在LLVM中收集统计信息有几种方法。本节中，我们将学习三种最常见和有用的方法，这些方法在这里概述:
 
 \begin{itemize}
-\item Using the Statistic class
-\item Using an optimization remark
-\item Adding time measurements
+\item 使用\texttt{Statistic}类
+\item 使用优化注释
+\item 添加时间测量
 \end{itemize}
 
-The first option is a general utility that collects statistics via simple counters; the second option is specifically designed to profile compiler optimizations; and the last option is use for collecting timing information in the compiler.
+第一个选项是通过简单的计数器，收集统计信息的通用工具。第二个选项是专门设计用来分析编译器优化的。最后一项，用于在编译器中收集计时信息。
 
-Let's start with the first one.
+从第一个开始。
 
-\subsubsubsection{11.3.1\hspace{0.2cm}Using the Statistic class}
+\subsubsubsection{11.3.1\hspace{0.2cm}使用\texttt{Statistic}类}
 
-In this section, we are going to demonstrate new features by amending them to the SimpleMulOpt LLVM Pass from the previous section. First, let's assume that we don't only want to print out the operand Value from multiplication instructions but that we also want to count how many multiplication instructions have been processed by our Pass. First, let's try to implement this feature using the LLVM\_DEBUG infrastructure we just learned about, as follows:
+本节中，我们将通过对上一节中的LLVM Pass——\texttt{SimpleMulOpt}——进行修改来演示新特性。首先，我们不仅想从乘法指令中打印出操作数\texttt{Value}，而且还想计算Pass已经处理了多少乘法指令。首先，尝试使用我们刚刚了解的\texttt{LLVM\_DEBUG}基础架构来实现这个特性，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 #define DEBUG_TYPE "simple-mul-opt"
@@ -34,9 +34,9 @@ SimpleMulOpt::run(Function &F, FunctionAnalysisManager &FAM) {
 }
 \end{lstlisting}
 
-This approach seems pretty straightforward. But it comes with a drawback—the statistical numbers we are interested in are mixed with other debug messages. We need to take additional actions to parse or filter the value we want because although you might argue that these problems could be tackled by using a separate DEBUG\_TYPE tag for each counter variable, when the number of counter variables increases, you might find yourself creating lots of redundant code.
+这种方法看起来非常简单。但它有一个缺点——我们感兴趣的统计数字与其他调试消息混杂在一起。我们需要采取额外的操作来解析或过滤我们想要的值，尽管可能会有读者说这些问题可以通过为每个计数器变量使用单独的DEBUG\_TYPE标签来解决，但当计数器变量的数量增加时，可能会发现自己创建了大量的冗余代码。
 
-One elegant solution is to use the Statistic class (and related utilities) provided by LLVM. Here is a version rewritten using this solution:
+一个很好的解决方案是使用LLVM提供的\texttt{Statistic}类(和相关工具)。下面是使用这个解决方案重写的版本:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/ADT/Statistic.h"
@@ -55,9 +55,9 @@ SimpleMulOpt::run(Function &F, FunctionAnalysisManager &FAM) {
 }
 \end{lstlisting}
 
-The preceding code snippet shows the usage of Statistic, calling the STATISTIC macro function to create a Statistic type variable (with a textual description) and simply using it like a normal integer counter variable.
+前面的代码展示了\texttt{Statistic}的用法，调用\texttt{STATISTIC}宏函数来创建一个\texttt{Statistic}类型变量(带有文本描述)，并像使用普通整数计数器变量一样使用即可。
 
-This solution only needs to modify a few lines in the original code, plus it collects all counter values and prints them in a table view at the end of the optimization. For example, if you run the SimpleMulOpt Pass using the -stats flag with opt, you will get the following output:
+这个解决方案只需要修改原始代码中的几行，而且它收集所有的计数器值，并在优化结束时将它们打印出来，例如：在\texttt{opt}中使用\texttt{-stats}标志运行\texttt{SimpleMulOpt} Pass，会得到以下输出:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -stats –load-pass-plugin=… …
@@ -68,7 +68,7 @@ $ opt -stats –load-pass-plugin=… …
 $
 \end{tcblisting}
 
-87 is the number of multiplication instructions processed in SimpleMulOpt. Of course, you are free to add as many Statistic counters as you want in order to collect different statistics. If you run more than one Pass in the pipeline, all of the statistical numbers will be presented in the same table. For instance, if we add another Statistic counter into SimpleMulOpt to collect a number of none-power-of-two constant operands from the multiplication instructions and run the Pass with Scalar Replacement of Aggregates (SROA), we can get an output similar to the one shown next:
+87是\texttt{SimpleMulOpt}中处理的乘法指令数。当然，可以随意添加任意数量的统计计数器，以便收集不同的统计信息。如果在管道中运行多个Pass，那么所有的统计数字都将显示在同一个表中，例如：如果在\texttt{SimpleMulOpt}中添加另一个统计计数器，以从乘法指令中收集多个常数操作数的非幂数，并运行Pass SROA，可以得到类似于下面所示的输出:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -stats –load-pass-plugin=… --passes="sroa,simple-multopt" …
@@ -84,38 +84,38 @@ operands
 $
 \end{tcblisting}
 
-The second column in the preceding code snippet is the name of the origin Pass, which is designated by the DEBUG\_TYPE value defined prior to any calls to STATISTIC.
+前面代码中的第二列是原始Pass的名称，它由\texttt{DEBUG\_TYPE}指定，在任何调用\texttt{STATISTIC}之前定义。
 
-Alternatively, you can output the result in JavaScript Object Notation (JSON) format by adding the -stats-json flag to opt. For example, look at the following code snippet:
+或者，可以通过在\texttt{opt}中添加\texttt{-stats-json}标志来输出JSON格式的结果:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -stats -stats-json –load-pass-plugin=… …
 {
-	"simple-mul-opt.NumMul": 87
+  "simple-mul-opt.NumMul": 87
 }
 $
 \end{tcblisting}
 
-In this JSON format, instead of printing statistic values with a textual description, the field name of a statistic entry has this format: "<Pass name>.<Statistic variable name>" (the Pass name here is also the value of DEBUG\_TYPE). Furthermore, you can print statistic results (either in default or JSON format) into a file using the -infooutput-file=<file name> command-line option. The following code snippet shows an example of this:
+在JSON格式中，统计项的字段名不是用文本描述打印统计值，而是使用这种格式:"<传递名称>.<统计变量名>"(这里的Pass名称也是\texttt{DEBUG\_TYPE}的值)。此外，可以使用\texttt{-infooutput-file=<文件名>}命令行选项将统计结果(默认或JSON格式)输出到文件中:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -stats -stats-json -info-output-file=my_stats.json …
 $ cat my_stats.json
 {
-	"simple-mul-opt.NumMul": 87
+  "simple-mul-opt.NumMul": 87
 } 
 $
 \end{tcblisting}
 
-You have now learned how to collect simple statistic values using the Statistic class. In the next section, we are going to learn a statistic collecting method that is unique to compiler optimization.
+现在，我们已经了解了如何使用\texttt{statistic}类收集简单的统计值。下一节中，我们将了解一种编译器优化所特有的统计数据收集方法。
 
-\subsubsubsection{11.3.2\hspace{0.2cm}Using an optimization remark}
+\subsubsubsection{11.3.2\hspace{0.2cm}使用优化注释}
 
-A typical compiler optimization usually consists of two stages: searching for the desired patterns from the input code, followed by modifying the code. Take our SimpleMulOpt Pass as an example: the first stage is to look for multiplication instructions (BinaryOperator with the Instruction::Mul operation code (opcode)) with power-of-two constant operands. For the second stage, we create new left-shifting instructions via IRBuilder::CreateShl(…) and replace all old usages of multiplication instructions with these.
+编译器优化通常包括两个阶段:从输入代码中搜索所需的模式，然后修改代码。以我们的\texttt{SimpleMulOpt} Pass为例:第一阶段是寻找具有2次幂常量操作数的乘法指令(\texttt{BinaryOperator}，带有\texttt{Instruction::Mul}的\textbf{操作码(opcode)})。在第二阶段，通过\texttt{IRBuilder::CreateShl(…)}创建左移指令，并用这些替换所有旧的乘法指令。
 
-There are many cases, however, where the optimization algorithm simply "bails out" during the first stage due to infeasible input code. For example, in SimpleMulOpt, we are looking for a multiplication instruction, but if the incoming instruction is not BinaryOperator, the Pass will not proceed to the second stage (and continue on to the next instruction). Sometimes, we want to know the reason behind this bailout, which can help us to improve the optimization algorithm or diagnose incorrect/suboptimal compiler optimization. LLVM provides a nice utility called an optimization remarks to collect and report this kind of bailout (or any kind of information) occurring in optimization Passes.
+有时，由于输入代码不可行，优化算法在第一阶段简单地“退出”，例如：在\texttt{SimpleMulOpt}中，我们正在寻找一条乘法指令，但是如果传入的指令不是\texttt{BinaryOperator}，Pass将不会继续到第二阶段(并继续到下一个指令)。有时，我们想知道这种情况背后的原因，这可以帮助我们改进优化算法或诊断错误/次优化的编译器优化。LLVM提供了一个很好的工具，称为\textbf{优化注释}，用于收集和报告在优化过程中发生的这种情况(或任何类型的信息)。
 
-For example, let's assume we have the following input code:
+例如，我们有以下输入代码:
 
 \begin{lstlisting}[style=styleCXX]
 int foo(int *a, int N) {
@@ -128,7 +128,7 @@ int foo(int *a, int N) {
 }
 \end{lstlisting}
 
-Theoretically, we can use loop-invariant code motion (LICM) to optimize this code into an equivalent code base such as this one:
+理论上，我们可以使用\textbf{循环不变代码方式(LICM)}将这段代码优化为一个等价的代码库，例如:
 
 \begin{lstlisting}[style=styleCXX]
 int foo(int *a, int N) {
@@ -139,15 +139,18 @@ int foo(int *a, int N) {
 }
 \end{lstlisting}
 
-We can do this as the fifth array element, a[5], never changed its value inside the loop. However, if we run LLVM's LICM Pass over the original code, it fails to perform the expected optimization.
+我们可以这样做，因为第5个数组元素\texttt{a[5]}在循环中永远不会改变它的值。然而，如果我们在原始代码上运行LLVM的LICM Pass，它将无法执行预期的优化。
 
-To diagnose this problem, we can invoke the opt command with an additional option: -\,-pass-remarks-output=<filename>. The filename will be a YAML Ain't Markup Language (YAML) file in which optimization remarks print out the possible reasons why LICM failed to optimize. Here is an example of this:
+要诊断这个问题，我们可以调用带有附加选项的opt命令:\texttt{-\,-pass- comments-output=<filename>}。文件名将是一个\texttt{YAML Ain't Markup Language (YAML)}文件，其中优化注释打印出LICM未能优化的可能原因:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -licm input.ll –pass-remarks-output=licm_remarks.yaml …
 $ cat licm_remarks.yaml
 …
 --- !Missed
+\end{tcblisting}
+
+\begin{tcblisting}{commandshell={}}
 Pass:            licm
 Name:            LoadWithLoopInvariantAddressInvalidated
 Function:        foo
@@ -158,11 +161,11 @@ address because the loop may invalidate its value
 $
 \end{tcblisting}
 
-The cat command in the preceding output shows one of the optimization remark entries in licm\_remarks.yaml. This entry tells us that there was a missed optimization that happened in the LICM Pass when it was processing the foo function. It also tells us the reason: LICM was not sure if a particular memory address was invalidated by the loop. Though this message doesn't provide fine-grained details, we can still infer that the problematic memory address concerning LICM was probably a[5]. LICM was not sure if the a[i] += 2 statement modified the content of a[5].
+上面的\texttt{cat}命令显示了\texttt{licm\_comments.yaml}中的一个优化注释条目。这个条目告诉我们，在处理\texttt{foo}函数时，LICM Pass中错过的优化，还告诉了我们原因:LICM不确定特定的内存地址是否会在循环内修改(无效)。尽管此消息没有提供细粒度的详细信息，但我们仍然可以推断出与LICM有关的有问题的内存地址可能是\texttt{a[5]}。LICM不确定\texttt{a[i] += 2}语句是否修改了\texttt{a[5]}的内容。
 
-With this knowledge, compiler developers can get hands-on in improving LICM—for example, teaching LICM to recognize induction variables (that is, the i variable in this loop) with a step value greater than 1 (in this case, it was 3, since i += 3).
+有了这些知识，编译器开发人员就可以动手改进LICM了——例如，教LICM识别步长大于1的归纳变量(即循环中的i变量)(在本例中是3，因为\texttt{i += 3})。
 
-To generate optimization remarks such as the one shown in the preceding output, compiler developers need to integrate a specific utility API into their optimization Pass. To show you how to do that in your own Pass, we are going to reuse our SimpleMulOpt Pass as the sample. Here is part of the code that performs the first stage—searching for multiplications with power-of-two constant operands—in SimpleMulOpt:
+要生成优化注释(如前面输出中所示)，编译器开发人员需要将特定的实用程序API集成到优化Pass中。为了向展示如何在自己的Pass中做到这一点，我们将重用\texttt{SimpleMulOpt} Pass作为示例。下面是在\texttt{SimpleMulOpt}中执行第一阶段的部分代码——搜索两个常量操作数的幂次乘法:
 
 \begin{lstlisting}[style=styleCXX]
 …
@@ -181,12 +184,12 @@ for (auto &I : instructions(F)) {
 }
 \end{lstlisting}
 
-The preceding code checks if the operand is constant before making sure it's  also a powerof-two operand. If either of these checks fails, the algorithm will bail out by continuing on to the next instruction in the function.
+前面的代码在确保操作数也是2的幂次之前检查操作数是否为常量。如果其中任何一个检查失败，算法将退出，继续执行函数中的下一条指令。
 
-We intentionally inserted a small flaw into this code to make it less powerful, and we are going to show you how to find that problem by using an optimization remark. Here are the steps to do this:
+我们故意在这段代码中插入了一个小缺陷，使其功能不那么强大，我们将向您展示如何使用优化注释来找到该问题。以下是实现这一目标的步骤:
 
 \begin{enumerate}
-\item First, we need to have an OptimizationRemarkEmitter instance, which can help you to emit remark messages. This can be obtained from its parent analyzer, OptimizationRemarkEmitterAnalysis. Here is how we include it at the beginning of the SimpleMulOpt::run method:
+\item 首先，需要一个\texttt{OptimizationRemarkEmitter}实例，可以发送注释消息。这可以从它的父分析器\texttt{OptimizationRemarkEmitterAnalysis}获得。下面是如何将它包含在\texttt{SimpleMulOpt::run}方法的起始段:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -199,7 +202,7 @@ SimpleMulOpt::run(Function &F, FunctionAnalysisManager
 }
 \end{lstlisting}
 
-\item Then, we are going to use this OptimizationRemarkEmitter instance to emit an optimization remark if the multiplication instruction lacks a constant operand, as follows:
+\item 然后，如果乘法指令缺少一个常量操作数，我们将使用这个\texttt{OptimizationRemarkEmitter}实例来发出一个优化注释，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/IR/DiagnosticInfo.h"
@@ -226,21 +229,21 @@ if (BinOp->getOpcode() == Instruction::Mul) {
 …
 \end{lstlisting}
 
-There are several things to be noticed here, as follows:
+这里有几点需要注意，如下:
 
 \begin{itemize}
-\item The OptimizationRemarkEmitter::emit method takes a lambda function as the argument. This lambda function will be invoked to emit an optimization remark object if the optimization remark feature is turned on (via the –passremarks-output command-line option we've seen previously, for example).
+\item 方法\texttt{OptimizationRemarkEmitter::emit}接受lambda函数作为参数。如果优化注释特性使能，将使用这个lambda函数发出一个优化注释对象(例如，\texttt{-pass-remarks-output}命令行选项)。
 
-\item The OptimizationRemarkMissed class (note that it is not declared in
-OptimizationRemarkEmitter.h but in the DiagnosticInfo.h header file) represents the remark of a missed optimization opportunity. In this case, the missed opportunity is the fact that instruction I does not have any constant operand. The constructor of OptimizationRemarkMissed takes three arguments: the name of the Pass, the name of the missed optimization opportunity, and the enclosing IR unit (in this case, we use the enclosing Function). In addition to constructing a OptimizationRemarkMissed object, we also concatenate several objects via the stream operator (<<) at the tail. These objects will eventually be put under the Args section of each optimization remark entry in the YAML file we saw previously.
+\item \texttt{OptimizationRemarkMissed}类(注意，它不是在\texttt{OptimizationRemarkEmitter.h}中声明的，而是在\texttt{DiagnosticInfo.h}头文件中声明的)表示错过的\textbf{优化机会}的注释。这种情况下，错过的机会是指令\texttt{I}没有任何常数操作数。\texttt{OptimizationRemarkMissed}的构造函数有三个参数:Pass的名称、错过的优化机会名称和包含的IR单元(在本例中，我们使用包含的\texttt{Function})。除了构造一个\texttt{optimizationcommentmissed}对象外，我们还通过尾部的流操作符(\texttt{<<})连接几个对象。这些对象最终将放在YAML文件中每个优化注释条目的\texttt{Args}部分中。
 
-In addition to using OptimizationRemarkMissed to notify you of missed optimization opportunities, you can also use other classes derived from DiagnosticInfoOptimizationBase to present different kinds of information—for example, use OptimizationRemark to find out which optimization has been successfully applied, and use OptimizationRemarkAnalysis to keep a log of analysis data/facts.
+除了使用\texttt{OptimizationRemarkMissed}通知错过了的优化机会外，还可以使用\texttt{Diagno sticInfoOptimizationBasee}的其他类来表示不同种类的信息，例如：使用\texttt{Optimiz ationRemark}来查找哪一个优化应用成功，并使用\texttt{OptimizationRemarkAnalysis}来保存分析数据/实际运行日志。
 
-\item Among objects concatenated by the stream operator, ore::NV(…) seems to be a special case. Recall that in the optimization remark YAML file, each line under the Args section was a key-value pair (for example, String: failed to move load with…., where String was the key). The ore::NV object allows you to customize the key-value pair. In this case, we are using Inst as the key and SS.str() as the value. This feature provides more flexibility to parse the optimization remark YAML file—for instance, if you want to write a little tool to visualize the optimization remarks, custom Args keys can give you an easier time (during the parsing stage) by distinguishing critical data from other strings.
+\item 在由流操作符连接的对象中，\texttt{ore::NV(…)}似乎是一种特殊情况。在优化注释YAML文件中，\texttt{Args}部分下的每一行都是一个键-值对(例如，\texttt{String: failed to
+move load with….}中，\texttt{String}是键)。\texttt{ore::NV}对象允许自定义键值对。本例中，使用\texttt{Inst}作为键，而\texttt{SS.str()}作为值。这个特性为解析优化注释YAML文件提供了更大的灵活性——例如，想编写一个小工具来可视化优化注释，自定义\texttt{Args}键可以(在解析阶段)更轻松地将关键数据与其他字符串区分开来。
 
 \end{itemize}
 
-\item Now that you have inserted the code to emit the optimization remark, it's time to test it. This time, we are going to use the following IR function as the input code:
+\item 既然已经插入了发出优化注释的代码，现在就可以对其进行测试了。这一次，我们将使用以下IR函数作为输入代码:
 
 \begin{lstlisting}[style=styleCXX]
 define i32 @bar(i32 %0) {
@@ -250,7 +253,7 @@ define i32 @bar(i32 %0) {
 }
 \end{lstlisting}
 
-You can rebuild the SimpleMulOpt Pass and run it using a command such as this:
+可以重新构建\texttt{SimpleMulOpt} Pass，并使用如下命令运行:
 
 \begin{tcblisting}{commandshell={}}
 $ opt –load-pass-plugin=… –passes="simple-mul-opt" \
@@ -270,9 +273,9 @@ operand'
 $
 \end{tcblisting}
 
-From this optimization remark entry, we can glean that SimpleMulOpt bailed out because it couldn't find a constant operand on one of the (multiplication) instructions. The Args section shows a detailed reason for this.
+从这个优化注释条目中，可以发现\texttt{SimpleMulOpt}失败了，因为它无法在其中一条(乘法)指令中找到一个常量操作数。\texttt{Args}部分详细说明了这样做的原因。
 
-With this information, we realize that SimpleMulOpt is unable to optimize a multiplication whose first operand (LHS operand) is a power-of-two constant, albeit a proper optimization opportunity. Thus, we can now fix the implementation of SimpleMulOpt to check if either of the operands is constant, as follows:
+有了这些信息，我们意识到\texttt{SimpleMulOpt}无法优化其第一个操作数(LHS操作数)是2的幂次常数的乘法，尽管这是一个适当的优化机会。因此，我们现在可以修复\texttt{SimpleMulOpt}的实现来检查操作数是否为常量，如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 …
@@ -290,16 +293,16 @@ if (BinOp->getOpcode() == Instruction::Mul) {
 } …
 \end{lstlisting}
 
-You have now learned how to emit optimization remarks in an LLVM Pass and how to use the generated report to discover potential optimization opportunities.
+现在，我们已经了解了如何在LLVM Pass中发出优化注释，以及如何使用生成的报告来发现潜在的优化机会。
 
 \end{enumerate}
 
-So far, we have only studied the generated optimization remark YAML file. Though it has provided valuable diagnostic information, it would be great if we could have more fine-grained and intuitive location information to know where exactly these remarks happened. Luckily, Clang and LLVM have provided a way to achieve that.
+到目前为止，我们只研究了生成的优化备注YAML文件。虽然它提供了有价值的诊断信息，但如果能够获得更细粒度和更直观的位置信息，从而准确地知道这些评论发生在哪里，那就更好了。幸运的是，Clang和LLVM提供了一种实现这一目标的方法。
 
-With the help of Clang, we can actually generate optimization remarks with source location (that is, line and column numbers in the original source file) attached. Furthermore, LLVM provides you with a small utility that can associate an optimization remark with its corresponding source location and visualize the result on a web page. Here's how to do this:
+在Clang的帮助下，我们可以实际生成附带源文件位置(即原始源文件中的行号和列号)的优化备注。此外，LLVM还为您提供了一个小工具，可以将优化注释与其相应的源代码位置关联起来，并在网页上可视化结果:
 
 \begin{enumerate}
-\item Let's reuse the following code as the input:
+\item 让我们重用下面的代码作为输入:
 
 \begin{lstlisting}[style=styleCXX]
 int foo(int *a, int N) {
@@ -310,49 +313,49 @@ int foo(int *a, int N) {
 }
 \end{lstlisting}
 
-First, let's generate optimization remarks using this clang command:
+首先，我们使用\texttt{clang}命令生成优化注释:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -O3 -foptimization-record-file=licm.remark.yaml \
         -S opt_remark_licm.c
 \end{tcblisting}
 
-Though we're using a different name, -foptimization-record-file is the command-line option used to generate an optimization remark file with the given filename.
+虽然使用了不同的名称，但\texttt{-foptimization-record-file}是命令行选项，用于指定文件名，在文件中记录优化注释。
 
-\item After licm.remark.yaml is generated, let's use a utility called opt-viewer.py to visualize the remarks. The opt-viewer.py script is not installed in the typical location by default—instead of putting it in <install path>/bin (for example /usr/bin), it is installed in <install path>/share/opt-viewer (/usr/share/opt-viewer). We are going to invoke this script with the following command-line options:
+\item 生成\texttt{licm.remark.yaml}之后，使用一个名为\texttt{opt-viewer.py}的工具对注释进行可视化。默认情况下，\texttt{opt-viewer.py}脚本不在\texttt{<install path>/bin}(例如\texttt{/usr/bin})中，而是安装在\texttt{<install path>/share/opt-viewer} (例如\texttt{/usr/share/opt-viewer})中。我们将使用以下命令行选项来调用这个脚本:
 
 \begin{tcblisting}{commandshell={}}
 $ opt-viewer.py --source-dir=$PWD \
 --target-dir=licm_remark licm.remark.yaml
 \end{tcblisting}
 
-(Note that opt-viewer.py depends on several Python packages such as pyyaml and pygments. Please install them before you use opt-viewer.py.)
+(请注意，\texttt{opt-viewer.py}依赖于几个Python包，如：pyyaml和pyplets。请在使用\texttt{opt-viewer.py}之前安装它们。)
 
-\item There will be a HTML file—index.html—generated inside the licm\_remark folder. Before you open the web page, please copy the original source code—opt\_remark\_licm.c—into that folder as well. After that, you will be able to see a web page like this:
+\item 在\texttt{licm\_remark}文件夹中会生成一个HTML文件\texttt{index.html}。打开网页之文件前，请将原始的源代码\texttt{opt\_remark\_licm.c}也复制到那个文件夹中。之后，将能够看到这样一个网页:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter11/images/1.png}\\
-Figure 11.1 – Web page of optimization remarks combined with the source file
+\includegraphics[width=0.7\textwidth]{content/3/chapter11/images/1.png}\\
+图11.1 - Web页面的优化注释与源文件的结合
 \end{center}
 
-We are particularly interested in two of these columns: Source Location and Pass. The latter column shows the name of the Pass and the type of the optimization remark—Missed, Passed, or Analyzed rendered in red, green, and white, respectively—attached on a given line shown at the Source Location column.
+我们对其中的两列特别感兴趣:\textbf{Source Location}和\textbf{Pass}。后一列显示了Pass的名称和优化注释的类型——以红色、绿色和白色呈现的\texttt{Missed}、\texttt{Passed}或\texttt{Analyzed}，分别附加在\textbf{Source Location}列的给定行上。
 
-If we click on a link in the Source Location column, this will navigate you to a page that looks like this:
+如果点击源位置列中的链接，这将导航到这样一个页面，看起来像这样:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
 \includegraphics[width=0.9\textwidth]{content/3/chapter11/images/2.png}\\
-Figure 11.2 – Details of an optimization remark
+图11.2 - 优化注释的详细信息
 \end{center}
 
-This page gives you a nice view of optimization remark details, interleaved with the originating source code line. For example, on line 3, loop-vectorize Pass said it couldn't vectorize this loop because its cost model didn't think it was beneficial to do so.
+这个页面提供了优化注释细节的一个很好的视图，并与原始源代码行交叉显示。例如，在第3行，\texttt{loop-vectorize} Pass说它不能向量化这个循环，因为它的模型不认为这样做是有益的。
 
 \end{enumerate}
 
-You have now learned how to use optimization remarks to gain insights into the optimization Pass, which is especially useful when you're debugging a missing optimization opportunity or fixing a mis-compilation bug.
+现在，我们已经了解了如何使用优化注释来深入了解优化Pass，这在调试丢失的优化机会或修复编译错误时特别有用。
 
-In the next section, we are going to learn some useful skills to profile the execution time of LLVM.
+下一节中，我们将了解一些有用的技能来分析LLVM的执行时间。
 
 
 

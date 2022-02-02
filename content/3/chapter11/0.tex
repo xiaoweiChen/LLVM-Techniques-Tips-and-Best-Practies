@@ -1,20 +1,20 @@
-In the previous chapter, we learned the basics of Low-Level Virtual Machine (LLVM) intermediate representation (IR)—the target-independent intermediate representations in LLVM—and how to inspect and manipulate this with C++ application programming interfaces (APIs). These are the core techniques for doing program analysis and transformation in LLVM. In addition to those skill sets, LLVM also provides many support utilities to improve compiler developers' productivity when working with LLVM IR. We are going to cover those topics in this chapter.
+前一章中，我们学习了\textbf{低层虚拟机(LLVM)的中间表示(IR)}(LLVM中与目标无关的中间表示)的基础知识，以及如何使用C++\textbf{应用程序编程接口(API)}检查和操作它，这些是在LLVM中进行程序分析和转换的核心技术。除了这些功能集，LLVM还提供了许多配套工具，以提高编译器开发人员使用LLVM IR时的生产效率。我们将在本章中讨论这些工具。
 
-A compiler is a complex piece of software. It not only needs to handle thousands of different cases— including input programs with different shapes and a wide variety of target architectures—but the correctness of a compiler is also an important topic: namely, the compiled code needs to have the same behavior as the original one. LLVM, a largescale compiler framework (and probably one of the biggest), is not an exception.
+编译器是一种复杂的软件。它不仅需要处理数千种不同的情况——包括不同类型的输入程序和各种各样的目标体系结构——而且编译器的正确性也是一个重要的话题:编译后的代码需要具有与原始代码相同的行为。LLVM虽然是一个大型编译器框架(可能是最大的编译器框架之一)，但也不能例外。
 
-To tackle these complexities, LLVM has provided a crate of gadgets to improve the development experience. In this chapter, we are going to show you how to gear up to use those tools. The utilities covered here can assist you in diagnosing problems that occur from the LLVM code you are developing. This includes more efficient debugging, error handling, and profiling abilities; for instance, one of the tools can collect statistical numbers on key components—such as the number of basic blocks being processed by a specific Pass—and automatically generate a summary report. Another example is LLVM's own error-handling framework, which prevents as many unhandled errors (a common programming mistake) as possible.
+为了解决这些复杂性问题，LLVM提供了一系列小工具来改善开发体验。本章中，我们将展示如何使用这些工具。本文介绍的工具，可以帮助诊断正在开发的LLVM代码中出现的问题。这包括更高效的调试、错误处理和分析能力，例如：其中一个工具可以收集关键组件的统计数字——比如：特定Pass处理的基本块的数量——并自动生成报告。另一个例子是LLVM自己的错误处理框架，可以尽可能多地防止未处理的错误(一种常见的编程错误)。
 
-Here is a list of the topics we are going to cover in this chapter:
+以下是我们将在本章中介绍的内容:
 
 \begin{itemize}
-\item Printing diagnostic messages
-\item Collecting statistics
-\item Adding time measurements
-\item Error-handling utilities in LLVM
-\item Learning about the Expected and ErrorOr classes
+\item 打印诊断信息
+\item 收集统计信息
+\item 添加时间测量
+\item LLVM中的错误处理工具
+\item 了解\texttt{Expected}和\texttt{ErrorOr}类
 \end{itemize}
 
-With the help of these utilities, you will have a better time debugging and diagnosing the LLVM code, letting you focus on the core logic you want to implement with LLVM.
+在这些实用程序的帮助下，我们将有更好的时间调试和诊断LLVM代码，从而使开发者能够专注于想要用LLVM实现的核心逻辑。
 
 
 
