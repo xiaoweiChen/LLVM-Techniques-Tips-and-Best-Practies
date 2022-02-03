@@ -1,15 +1,17 @@
 
-Error handling has always been a widely discussed topic in software development. It can be as simple as returning an error code—such as in many of the Linux APIs (for example, the open function)—or using an advanced mechanism such as throwing an exception, which has been widely adopted by many modern programming languages such as Java and C++.
+错误处理一直是软件开发中广泛讨论的话题。可以像返回错误代码一样简单——例如：在许多Linux API中(例如，\texttt{open}函数)——或者使用高级机制，例如：抛出异常，这已经被许多现代编程语言(如Java和C++)广泛采用。
 
-Although C++ has built-in support for exception handling, LLVM does not adopt it in its code base at all. The rationale behind this decision is that despite its convenience and expressive syntax, exception handling in C++ comes at a high cost in terms of performance. Simply speaking, exception handling makes the original code more complicated and hinders a compiler's ability to optimize it. Furthermore, during runtime, the program usually needs to spend more time recovering from an exception. Therefore, LLVM disables exception handling by default in its code base and falls back to other ways of error handling—for example, carrying an error with the return value or using the utilities we are going to learn about in this section. In the first half of this section, we are going to talk about the Error class, which—as the name suggests—represents an error. This is unlike conventional error representations—when using an integer as the error code, for instance, you cannot ignore the generated Error instances without handling it. We will explain this shortly.
+虽然C++内置了对异常处理的支持，但LLVM在其代码库中根本没有使用。这一决定背后的基本原因是，尽管方便表达语法，但C++中的异常处理在性能方面需要付出了很高的代价。简单地说，异常处理使原始代码更加复杂，并妨碍编译器对其进行优化。此外，在运行时，程序通常需要花费更多的时间从异常中恢复。因此，LLVM在其代码库中默认禁用异常处理，转而使用其他错误处理方法——例如，在返回值中携带一个错误或使用本节中的工具。
 
-In addition to the Error class, developers found that in LLVM's code base a common pattern was shared by much of the error-handling code: an API may return a result or an error, but not both (at the same time). For instance, when we call a file-reading API, we are expecting to get the content of that file (the result) or an error when something goes wrong (for example, there is no such file). In the second part of this section, we are going to learn two utility classes that implement this pattern.
+本节的前半部分，我们将讨论\texttt{Error}类，它代表错误。这与传统的错误表示不同——例如，当使用整数作为错误代码时，不能忽略生成的\texttt{Error}实例而不处理。我们稍后将对此进行解释。
 
-Let's start with an introduction to the Error class first.
+除了\texttt{Error}类，在LLVM的代码库中，许多错误处理代码都有一个共同的模式:API可以返回结果或错误，但不能同时返回结果或错误。例如，当我们调用读取文件的API时，期望得到该文件的内容(结果)或出错时的错误(例如，没有这样的文件)。本节的第二部分中，我们将了解两个实现此模式的工具类。
 
-\subsubsubsection{11.5.1\hspace{0.2cm}Introducing the Error class}
+首先介绍\texttt{Error}类。
 
-The concept represented by the Error class is pretty simple: it's an error with supplementary descriptions such as an error message or error code. It is designed to be passed by a value (as a function argument) or returned from a function. Developers are free to create their custom Error instance, too. For example, if we want to create a FileNotFoundError instance to tell users that a certain file does not exist, we can write the following code:
+\subsubsubsection{11.5.1\hspace{0.2cm}Error类}
+
+\texttt{Error}类所表示的概念非常简单:一个带有附加描述的错误，比如错误消息或错误代码，通过一个值(作为函数的参数)传递或从函数返回。开发人员也可以创建自己的\texttt{Error}实例，例如：如果想创建一个\texttt{FileNotFoundError}实例来告诉用户某个文件不存在，代码如下：
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/Support/Error.h"
@@ -32,33 +34,33 @@ struct FileNotFoundError : public ErrorInfo<FileNoteFoundError>
 char FileNotFoundError::ID = 0;
 \end{lstlisting}
 
-There are several requirements for implementing a custom Error instance. These are listed next:
+实现自定义\texttt{Error}实例有几个要求:
 
 \begin{itemize}
-\item Derive from the ErrorInfo<T> class, where T is your custom class.
-\item Declare a unique ID variable. In this case, we use a static class member variable.
-\item Implement the convertToErrorCode method. This method designates a std::error\_code instance for this Error instance. std::error\_code is the error type used in the C++ standard library (since C++11). Please refer to the C++ reference documentation for available (predefined) std::error\_code instances.
-\item Implement the log method to print out error messages.
+\item 从\texttt{ErrorInfo<T>}类派生，其中\texttt{T}是自定义类型。
+\item 声明唯一的\texttt{ID}变量。本例中，我们使用一个静态类成员变量。
+\item 实现\texttt{convertToErrorCode}，这个方法为\texttt{Error}实例指定\texttt{std::error\_code}实例。\texttt{std::err or\_code}是C++标准库中使用的错误类型(从C++11开始)。请参考C++参考文档获取(预定义的)\texttt{std::error\_code}的实例。
+\item 实现\texttt{log}的方式打印出错误消息。
 \end{itemize}
 
-To create an Error instance, we can leverage a make\_error utility function. Here is an example usage of this:
+要创建\texttt{Error}实例，可以使用\texttt{make\_error}函数:
 
 \begin{lstlisting}[style=styleCXX]
 Error NoSuchFileErr = make_error<FileNotFoundError>("foo.txt");
 \end{lstlisting}
 
-The make\_error function takes an error class—in this case, our FileNotFoundError class—as the template argument and function arguments (in this case, foo.txt), if there are any. These will then be passed to its constructor.
+\texttt{make\_error}函数接受一个\texttt{Error}类(在本例中是\texttt{FileNotFoundError}类)作为模板参数和函数参数(在本例中是\texttt{foo.txt})。这些将传递给其构造函数。
 
-If you try to run the preceding code (in debug build) without doing anything to the NoSuchFileErr variable, the program will simply crash and show an error message such as this:
+如果尝试运行上面的代码(在调试构建中)，而不对\texttt{NoSuchFileErr}变量做任何操作，程序将会崩溃，并显示如下错误消息:
 
 \begin{tcblisting}{commandshell={}}
 Program aborted due to an unhandled Error:
 foo.txt: No such file
 \end{tcblisting}
 
-It turns out that every Error instance is required to be checked and handled before the end of its lifetime (that is, when its destructor method is called).
+结果是，每个\texttt{Error}实例都需要在其生命周期结束之前(即在调用其析构函数方法时)进行检查和处理。
 
-Let me first explain what checking an Error instance means. In addition to representing a real error, the Error class can also represent a success state—that is, no error. To give you a more concrete idea of this, many of the LLVM APIs have the following error-handling structure:
+先解释一下检查\texttt{Error}实例意味着什么。除了表示真实的错误外，\texttt{Error}类还可以表示成功状态，即没有错误。为了更具体地了解这一点，许多LLVM API都有以下错误处理的结构:
 
 \begin{lstlisting}[style=styleCXX]
 Error readFile(StringRef FileName) {
@@ -71,9 +73,9 @@ Error readFile(StringRef FileName) {
 }
 \end{lstlisting}
 
-Note that you always need to check an Error instance even if you are 100\% sure that it is in a Success state, otherwise the program will still abort.
+注意，百分之百确定它处于成功状态，也要需要检查\texttt{Error}实例，否则程序仍然会中止运行。
 
-The preceding code snippet provides a good segue into the topic of handling Error instances. If an Error instance represents a real error, we need to use a special API to handle it: handleErrors. Here's how to use it:
+前面的代码段提供了一个很好过渡到处理\texttt{Error}实例的例程。如果一个\texttt{Error}实例代表了一个真实的错误，就需要使用一个特殊的API来处理它:\texttt{handleErrors}。下面是如何使用它:
 
 \begin{lstlisting}[style=styleCXX]
 Error E = readFile(…);
@@ -84,9 +86,9 @@ if (E) {
 }
 \end{lstlisting}
 
-The handleErrors function takes ownership of the Error instance (by std::move(E)) and uses the provided lambda function to handle the error. You might notice that handleErrors returns another Error instance, which represents the unhandled error. What does that mean?
+\texttt{handleErrors}函数获得\texttt{Error}实例的所有权(通过\texttt{std::move(E)})，并使用提供的lambda函数来处理错误。我们注意到\texttt{handleErrors}会返回一个\texttt{Error}实例，来表示未处理的错误。这是什么意思呢？
 
-In the previous example of the readFile function, the returned Error instance can represent either a Success state or a FileNotFoundError state. We can slightly modify the function to return a FileEmptyError instance when the opened file is empty, as follows:
+前面的\texttt{readFile}函数示例中，返回的\texttt{Error}实例，既可以表示\texttt{Success}状态，也可以表示\texttt{FileNotFoundError}状态。我们可以稍微修改这个函数，当打开的文件为空时，返回一个\texttt{FileEmpty Error}实例:
 
 \begin{lstlisting}[style=styleCXX]
 Error E = readFile(…);
@@ -101,9 +103,9 @@ if (E) {
 }
 \end{lstlisting}
 
-Now, the Error instance returned from readFile can either be a Success state, a FileNotFoundError instance, or a FileEmptyError instance. However, the handleErrors code we wrote previously only handled the case of FileNotFoundError.
+现在，\texttt{readFile}返回的\texttt{Error}实例可以是一个\texttt{Success}状态，或一个\texttt{FileNotFoundError}实例，再或一个\texttt{FileEmptyError}实例。然而，我们之前写的\texttt{handleErrors}代码，只能处理\texttt{FileNotFoundError}的情况.
 
-Therefore, we need to use the following code to handle the case of FileEmptyError:
+因此，我们需要使用以下代码来处理\texttt{FileEmptyError}的情况:
 
 \begin{lstlisting}[style=styleCXX]
 Error readFile(StringRef FileName) {
@@ -119,9 +121,9 @@ Error readFile(StringRef FileName) {
 }
 \end{lstlisting}
 
-Be aware that you always need to take ownership of an Error instance when using handleErrors.
+注意，在使用\texttt{handleErrors}时，需要获取\texttt{Error}实例的所有权。
 
-Alternatively, you can coalesce two handleErrors function calls into one by using multiple lambda function arguments for each of the error types, as follows:
+或者，可以通过为每种错误类型使用多个lambda函数参数将两个\texttt{handleErrors}函数调用合并为一个:
 
 \begin{lstlisting}[style=styleCXX]
 Error E = readFile(…);
@@ -134,7 +136,7 @@ if (E) {
 }
 \end{lstlisting}
 
-In other words, the handleErrors function is acting like a switch-case statement for an Error instance. It is effectively working like the following pseudocode:
+换句话说，\texttt{handleErrors}函数的作用类似于\texttt{Error}实例的switch语句，运行起来像下面的伪代码一样:
 
 \begin{lstlisting}[style=styleCXX]
 Error E = readFile(…);
@@ -148,10 +150,10 @@ if (E) {
 }
 \end{lstlisting}
 
-Now, you might be wondering: Since handleErrors will always return an Error representing the unhandled error, and I can't just ignore the returned instance, otherwise the program will abort, how should we end this "chain of error handling"? There are two ways to do that, so let's have a look at each, as follows:
+现在，由于\texttt{handleErrors}总是返回一个表示未处理错误的\texttt{Error}，就不能忽略返回的实例，否则程序将中止运行，这时我们应该如何结束这个“错误处理链”？有两种方法，让我们来了解一下:
 
 \begin{itemize}
-\item If you are 100\% sure that you have handled all possible error types—which means that the unhandled Error variable is in a Success state—you can call the cantFail function to make an assertion, as illustrated in the following code snippet:
+\item 如果100\%确信已经处理了所有可能的错误类型——这意味着未处理的\texttt{Error}变量处于\texttt{Success}状态——可以使用\texttt{cantFail}函数进行断言:
 
 \begin{lstlisting}[style=styleCXX]
 if (E) {
@@ -163,9 +165,9 @@ if (E) {
 }
 \end{lstlisting}
 
-If UnhandledErr still contains an error, the cantFail function will abort the program execution and print an error message.
+如果\texttt{UnhandledErr}仍然包含一个错误，\texttt{cantFail}函数将中止程序执行，并打印一条错误消息。
 
-\item A more elegant solution would be to use the handleAllErrors function, as follows:
+\item 一个更优雅的解决方案是使用\texttt{handleAllErrors}函数:
 
 \begin{lstlisting}[style=styleCXX]
 if (E) {
@@ -177,13 +179,13 @@ if (E) {
 }
 \end{lstlisting}
 
-This function will not return anything. It assumes that the given lambda functions are sufficient to handle all possible error types. Of course, if there is a missing one, handleAllErrors will still abort the program execution, just like what we have seen previously.
+这个函数不会返回任何东西，假设给定的lambda函数足以处理所有可能的错误类型。当然，如果缺少，\texttt{handleAllErrors}仍然会中止程序。
 
 \end{itemize}
 
-You have now learned how to use the Error class and how to properly handle errors. Though the design of Error seems a little annoying at first glance (that is, we need to handle all possible error types or the execution will just abort halfway), these restrictions can decrease the number of mistakes made by programmers and create a more robust program.
+现在，我们已经了解了如何使用\texttt{Error}类，以及如何正确处理错误。虽然\texttt{Error}的设计乍一看似乎有些烦(也就是说，我们需要处理所有可能的错误类型，否则执行将中途中止)，但这些限制可以减少程序员犯的错误数量，并创建更健壮的程序。
 
-Next, we are going to introduce two other utility classes that can further improve the error-handling expressions in LLVM.
+接下来，我们将介绍另外两个工具类，它们可以进一步提升LLVM中的错误处理表达式。
 
 
 
