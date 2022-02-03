@@ -1,18 +1,17 @@
-In the previous chapter, we learned how to leverage various utilities to improve our productivity while developing with LLVM. Those skills can give us a smoother experience when diagnosing problems that are raised by LLVM. Some of these utilities can even reduce the number of potential mistakes that are made by compiler engineers. In this chapter, we are going to learn how instrumentation works in LLVM IR.
+前一章中，我们了解了如何在使用LLVM进行开发时利用各种工具来提高工作效率，这些技能可以让我们在诊断出LLVM的问题时，处理起来更加顺畅。其中一些工具可以减少编译器工程师犯错的机会。本章中，我们将了解在LLVM IR中工具是如何工作的。
 
-The instrumentation we are referring to here is a kind of technique that inserts some probes into the code we are compiling in order to collect runtime information. For example, we can collect information about how many times a certain function was called – which is only available once the target program has been executed. The advantage of this technique is that it provides extremely accurate information about the target program's behavior. This information can be used in several different ways. For instance, we can use the collected values to compile and optimize the same code again – but this time, since we have accurate data, we can perform more aggressive optimizations that couldn't be done previously. This technique is also called Profile-Guided Optimization (PGO). In another example, will be using the inserted probes to catch undesirable incidents that happened at runtime – buffer overflows, race conditions, and double-free memory, to name a few. The probe that's used for this purpose is also called a sanitizer.
+我们在这里所指的\textbf{工具}是一种技术，将一些检测插入到我们正在编译的代码中，以收集运行时信息，例如：可以收集关于某个函数调用多少次的信息——只有在目标程序执行之后才可用。这种技术的优点是提供了关于目标程序行为的准确信息，这些信息可以以几种不同的方式使用，例如：可以使用收集到的值，再次编译和优化相同的代码——但是这一次，由于有准确的数据，可以执行以前无法执行的优化。这种技术也称为\textbf{数据导向优化(Profile-Guided Optimization，PGO)}。在另一个例子中，将使用插入的检测来捕获运行时不希望发生的事件——缓冲区溢出、条件竞争和双重释放内存等等。用于此目的的检测器，也称为\textbf{杀毒器}。
 
-To implement instrumentation in LLVM, we not only need the help of LLVM pass, but also the synergy between multiple subprojects in LLVM – Clang, LLVM IR Transformation, and Compiler-RT. We already know about the first two from earlier chapters. In this chapter, we are going to introduce Compiler-RT and, more importantly, how can we combine these subsystems for the purpose of instrumentation.
+要在LLVM中实现相应的工具，不仅需要LLVM Pass的帮助，还需要LLVM-\textbf{Clang}、\textbf{LLVM IR} \textbf{Transformation}和\textbf{Compiler-RT}中的多个子项目之间的协同。在本章中，我们将介绍Compiler-RT，更重要的是，了解如何将这些子系统组合在一起，从而达到测试的目的。
 
-Here is the list of topics we are going to cover:
+下面是我们将要讨论的内容:
 
 \begin{itemize}
-\item Developing a sanitizer
-\item Working with PGO
+\item 开发杀毒器
+\item 使用PGO
 \end{itemize}
 
-
-In the first part of this chapter, we are going to see how a sanitizer is implemented in Clang and LLVM, before creating a simple one by ourselves. The second half of this chapter is going to show you how to use the PGO framework in LLVM and how we can extend it.
+本章的第一部分，将看到如何在Clang和LLVM中实现杀毒器，然后自己创建一个简单的杀毒器。本章的后半部分将展示如何在LLVM中使用PGO框架，以及如何扩展它。
 
 
 

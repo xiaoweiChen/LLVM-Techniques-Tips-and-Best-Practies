@@ -1,7 +1,7 @@
 
-In the previous section, we learned how a sanitizer assists developers in performing sanity checks with higher precision using data that is only available at runtime. We also learned how to create a custom sanitizer. In this section, we will follow up on the idea of leveraging runtime data. We are going to learn an alternative use for such information – using it for compiler optimization.
+前一节中，我们了解了杀毒器如何使用仅在运行时可用的数据，帮助开发人员以更高的精度执行健全性检查。我们还了解了如何制作自定义杀毒器。在本节中，我们将继续讨论利用运行时数据的思想，将这些信息用于另一个方面——编译器优化。
 
-PGO is a technique that uses statistics that have been collected during runtime to enable more aggressive compiler optimizations. The profile in its name refers to the runtime data that's been collected. To give you an idea of how such data enhances an optimization, let's assume we have the following C code:
+PGO是一种技术，它使用在运行时收集的统计信息，来支持更积极的编译器优化(相关文件已经收集了足够的运行时数据)。为了了解这样的数据是如何增强优化的，假设我们有以下C代码:
 
 \begin{lstlisting}[style=styleCXX]
 void foo(int N) {
@@ -12,49 +12,50 @@ void foo(int N) {
 }
 \end{lstlisting}
 
-In this code, we have three functions: foo, bar, and zoo. The first function conditionally calls the latter two.
+这段代码中，我们有三个函数:\texttt{foo}、\texttt{bar}和\texttt{zoo}。第一个函数有条件地调用后两个函数。
 
-When we try to optimize this code, the optimizer usually tries to inline callee functions into the caller. In this case, bar or zoo might be inlined into foo. However, if either bar or zoo has a large function body, inlining both might bloat the size of the final binary. Ideally, it will be great if we could inline only the one that executes the most frequently. Sadly, from a statistics point of view, we have no clue about which function has the highest execution frequency, because the foo function conditionally calls either of them based on a (non-constant) variable.
+当我们尝试优化这段代码时，优化器通常会尝试将函数内联扩展到调用函数中。这种情况下，\texttt{bar}或\texttt{zoo}可能会内联到\texttt{foo}中。但是，如果\texttt{bar}或\texttt{zoo}有一个较大的函数体，内联两者可能会使最终二进制文件的体积膨胀。理想情况下，如果只能内联执行最频繁的那一个，那就太好了。遗憾的是，从统计的角度来看，我们不知道哪个函数的执行频率最高，因为\texttt{foo}函数根据一个(非常量)变量有条件地使用它们中的一个。
 
-With PGO, we can collect the execution frequencies of both bar and zoo at runtime and use the data to compile (and optimize) the same code again. The following diagram shows the high-level overview of this idea:
+使用PGO，我们可以在运行时收集\texttt{bar}和\texttt{zoo}的执行频率，并使用这些数据再次编译(和优化)相同的代码。下图展示了这一理念的高层概述:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
-\includegraphics[width=0.9\textwidth]{content/3/chapter12/images/5.png}\\
-Figure 12.5 – PGO workflow
+\includegraphics[width=0.8\textwidth]{content/3/chapter12/images/5.png}\\
+图12.5 - PGO工作流
 \end{center}
 
-Here, the first compilation phase compiled and optimized the code normally. After we executed the compiled program (an arbitrary number of times), we were able to collect the profile data files. In the second compilation phase, we not only optimized the code, as we did previously, but also integrated the profile data into the optimizations to make them act more aggressively. 
+这里，第一个编译阶段通常编译和优化代码。在执行编译后的程序(任意次数)之后，能够收集到足够的运行数据文件。在第二个编译阶段，我们不仅像以前那样优化了代码，而且还将收集到的数据集成到优化中，以使它们更积极地发挥作用。
 
-There are primarily two ways for PGO to collect runtime profiling data: inserting instrumentation code or leveraging sampling data. Let's introduce both.
+PGO主要有两种方法来收集运行时分析数据:插入\textbf{检测}代码或利用\textbf{采样}数据。
 
 
-\subsubsubsection{12.3.1\hspace{0.2cm}Introduction to instrumentation-based PGO}
+\subsubsubsection{12.3.1\hspace{0.2cm}基于检测的PGO}
 
-Instrumentation-based PGO inserts instrumentation code into the target program during the first compilation phase. This code measures the execution frequency of the program constructions we're interested in – for example, basic blocks and functions – and writes the result in a file. This is similar to how a sanitizer works.
+基于检测的PGO在第一个编译阶段将检测代码插入到目标程序中。这段代码测量我们感兴趣的程序构造的执行频率——例如，基本块和函数——并将结果写入文件。这与杀毒器的工作原理类似。
 
-Instrumentation-based PGO usually generates profiling data with higher precision. This is because the compiler can insert instrumentation code in a way that provides the greatest benefit for other optimizations. However, just like the sanitizer, instrumentation-based PGO changes the execution flow of the target program, which increases the risk of performance regression (for the binary that was generated from the first compilation phase).
+基于检测的PGO通常生成精度更高的数据。这是因为编译器可以以一种为其他优化提供最大好处的方式插入检测代码。然而，就像杀毒器一样，基于检测的PGO改变了目标程序的执行流，不过这增加了性能回归的风险(对于从第一个编译阶段生成的二进制文件)。
 
-\subsubsubsection{12.3.2\hspace{0.2cm}Introduction to sampling-based PGO}
+\subsubsubsection{12.3.2\hspace{0.2cm}基于采样的PGO}
 
-Sampling-based PGO uses external tools to collect profiling data. Developers use profilers such as perf or valgrind to diagnose performance issues. These tools usually leverage advanced system features or even hardware features to collect the runtime behavior of a program. For example, perf can give you insights into branch prediction and cache line misses.
+基于采样的PGO使用外部工具收集分析数据。开发人员使用\texttt{perf}或\texttt{valgrind}等分析器来诊断性能问题。这些工具通常利用高级的系统特性，甚至硬件特性来收集程序的运行时行为，例如：\texttt{perf}可以让您了解分支预测和缓存缺失。
 
-Since we are leveraging data from other tools, there is no need to modify the original code to collect profiles. Therefore, sampling-based PGO usually has an extremely low runtime overhead (usually, this is less than 1\%). Also, we don't need to recompile the code for profiling purposes. However, profiling data that's generated in this way is usually less precise. It's also more difficult to map the profiling data back to the original code during the second compilation phase.
+因为我们正在利用来自其他工具的数据，所以不需要修改原始代码来收集概要文件。因此，基于采样的PGO通常具有极低的运行时开销(通常小于1\%)。此外，我们不需要为了分析目的而重新编译代码。然而，以这种方式生成的分析数据通常不那么精确。第二个编译阶段中，将分析数据映射回原始代码也更加困难。
 
-In the rest of this section, we are going to focus on instrumentation-based PGO. We are going to learn how to leverage it with LLVM IR. Nevertheless, as we will see shortly, these two PGO strategies in LLVM share lots of common infrastructures, so the code is portable. Here is the list of topics we are going to cover:
+本节的其余部分，我们将重点关注基于检测的PGO。我们将学习如何利用它与LLVM IR。然而，LLVM中的这两种PGO策略共享许多公共的工具，因此代码是可移植的。下面是我们将要讨论的内容:
 
 \begin{itemize}
-\item Working with profiling data
-\item Learning about the APIs for accessing profiling data
+\item 使用分析数据
+%\item 理解检测级别
+\item 了解访问分析数据的API
 \end{itemize}
 
-The first topic will show us how to create and use instrumentation-based PGO profiles with Clang, as well as some of the tools that can help us inspect and modify profiling data. The second topic will give you more details on how to access profiling data using LLVM APIs. This is useful if you want to create your own PGO pass.
+第一个主题将向我们展示如何使用Clang创建和使用基于检测的PGO数据文件，以及一些可以帮助我们检查和修改概要数据文件的工具。第二个主题将提供更多关于如何使用LLVM API访问分析数据的详细信息。如果想创建自己的PGO Pass，这是很有用的。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Working with profiling data}
+\textbf{使用分析数据}
 
-In this section, we are going to learn how to use generate, inspect, and even modify instrumentation-based profiling data. Let's start with the following example:
+本节中，我们将了解如何使用生成、检查甚至修改基于工具的分析数据。让我们从下面的例子开始:
 
 \begin{lstlisting}[style=styleCXX]
 __attribute__((noinline))
@@ -70,20 +71,20 @@ int main(int argc, char **argv) {
 }
 \end{lstlisting}
 
-In the preceding code, get\_random is a function that generates a random number from 1 to 10 with uniform distribution. In other words, the highlighted if statement in the foo function should have a 50\% chance of being taken. In addition to the foo function, the trip count of the for loop within main depends on the number of command-line arguments there are.
+上面的代码中，\texttt{get\_random}是一个函数，生成一个从1到10的均匀分布的随机数。换句话说，\texttt{foo}函数中突if语句应该有50\%的几率被执行。除了\texttt{foo}函数之外，\texttt{main}中的\texttt{for}循环的迭代计数取决于命令行参数的数量。
 
-Now, let's try to build this code with instrumentation-based PGO. Here are the steps:
+现在，让我们尝试使用基于检测的PGO构建这段代码。以下是步骤:
 
 \begin{enumerate}
-\item The first thing we are going to do is generate an executable for PGO profiling. Here is the command:
+\item 第一件事是为PGO分析生成一个可执行文件。命令如下:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -O1 -fprofile-generate=pgo_prof.dir pgo.cpp -o pgo
 \end{tcblisting}
 
-The -fprofile-generate option enables instrumentation-based PGO. The path that we added after this flag is the directory where profiling data will be stored.
+\texttt{-fprofile-generate}选项支持基于检测的PGO，我们在此标志之后添加的路径是存储分析数据的目录。
 
-\item Next, we must run the pgo program with three command-line arguments:
+\item 接下来，必须使用三个命令行参数运行\texttt{pgo}:
 
 \begin{tcblisting}{commandshell={}}
 $ ./pgo `seq 1 3`
@@ -95,26 +96,26 @@ Hello 39
 $
 \end{tcblisting}
 
-You might get a totally different output since there is only a 50\% of chance of  the string being printed.
+每个人可能会得到一个完全不同的输出，因为只有50\%的机会打印字符串。
 
-After this, the pgo\_prof.dir folder should contain the  default\_<hash>\_<n>.profraw file, as shown here:
+在这之后，\texttt{pgo\_prof.dir}文件夹应该包含\texttt{default\_<hash>\_<n>.profraw}文件，如下所示:
 
 \begin{tcblisting}{commandshell={}}
 $ ls pgo_prof.dir 
 default_10799426541722168222_0.profraw
 \end{tcblisting}
 
-The hash in the filename is a hash that's calculated based on your code.
+文件名中的哈希值是基于代码计算的哈希值。
 
-\item We cannot directly use the *.profraw file for our second compilation phase. Instead, we must convert it into another kind of binary form using the llvmprofdata tool. Here is the command:
+\item 不能直接使用\texttt{*.profraw}文件用于第二个编译阶段。相反，必须使用\texttt{llvm-profdata}工具将其转换为另一种二进制形式。命令如下:
 
 \begin{tcblisting}{commandshell={}}
 $ llvm-profdata merge pgo_prof.dir/ -o pgo_prof.profdata
 \end{tcblisting}
 
-llvm-profdata is a powerful tool for inspecting, converting, and merging profiling data files. We will look at it in more detail later. In the preceding command, we are merging and converting all the data files under pgo\_prof.dir into a single *.profdata file.
+\texttt{llvm-profdata}是一个强大的工具，用于检查、转换和合并分析数据文件，我们将在后面更详细地讨论它。上面的命令中，我们正在合并和转换\texttt{pgo\_prof.dir}下的所有数据文件，到单个\texttt{*.profdata}文件中。
 
-\item Finally, we can use the file we just merged for the second stage of compilation. Here is the command:
+\item 最后，我们可以使用合并的文件进行第二阶段的编译。命令如下:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -O1 -fprofile-use=pgo_prof.profdata pgo.cpp \
@@ -123,10 +124,9 @@ $ clang -O1 -fprofile-use=pgo_prof.profdata pgo.cpp \
 
 \end{enumerate}
 
-Here, the -fprofile-use option told clang to use the profiling data stored in pgo\_prof.profdata to optimize the code. We are going to look at the LLVM IR code after we've done this optimization.
+这里，\texttt{-fprofile-use}选项告诉\texttt{clang}使用存储在\texttt{pgo\_prof.profdata}中的分析数据来优化代码。在完成这个优化之后，我们再来看看LLVM IR代码。
 
-Open pgo.after.ll and navigate to the foo function. Here is a simplified version
-of foo:
+打开\texttt{pgo.after.ll}，并找到到\texttt{foo}函数。下面是\texttt{foo}的简化版本:
 
 \begin{lstlisting}[style=styleCXX]
 define void @foo(i32 %x) !prof !71 {
@@ -141,34 +141,37 @@ if.then:
 }
 \end{lstlisting}
 
-In the preceding LLVM IR code, two places were different from the original IR; that is, the !prof tags that followed after both the function header and the branch instruction, which correspond to the if(get\_random() > 5) code we saw earlier.
+在之前的LLVM IR代码中，有两个地方与原来的IR不同，紧跟在函数头文件和分支指令之后的\texttt{!prof}标记，它对应于我们前面看到的\texttt{if(get\_random() > 5)}。
 
-In LLVM IR, we can attach metadata to different IR units to provide supplementary information. Metadata will show up as a tag starting with exclamation mark ('!') in the textual LLVM IR.!prof, !71, and !72 in the preceding code are metadata tags that represent the profiling data we collected. More specifically, if we have profiling data associated with an IR unit, it always starts with !prof, followed by another metadata tag that contains the required values. These metadata values are put at the very bottom of the IR file. If we navigate there, we will see the content of !71 and !72. Here is the code:
+在LLVM IR中，我们可以将\textbf{元数据}附加到不同的IR单元以提供补充信息。元数据将以一个以感叹号('!')开头的标签出现在文本LLVM IR中。前面代码中的\texttt{!prof}、\texttt{!71}和\texttt{!72}是表示我们收集的分析数据的元数据标记。更具体地说，如果我们有与IR单元相关联的分析数据，总是以\texttt{!prof}开头，然后是另一个元数据标记包含所需值。这些元数据值放在IR文件的最底部。如果在那里查找，会看到\texttt{!71}和\texttt{!72}的内容。代码如下:
 
 \begin{tcblisting}{commandshell={}}
 !71 = !{!"function_entry_count", i64 110}
 !72 = !{!"branch_weights", i32 57, i32 54}
 \end{tcblisting}
 
-These two metadata are tuples with two and three elements. !71, as suggested by its first element, represents the number of times the foo function was called (in this case, it was called 110 times).
+这两个元数据是包含两个和三个元素的元组。\texttt{!71}，正如它的第一个元素所表示的，表示\texttt{foo}函数被调用的次数(在本例中，调用了110次)。
 
-On the other hand,!72 marks the number of times each branch in the if(get\_ random() > 5) statement was taken. In this case, the true branch was taken 57 times and the false branch was taken 54 times. We got these numbers because we were using uniform distribution for random number generation (namely, a ~50\% chance for each branch).
+\texttt{!72}表示\texttt{if(get\_random() > 5)}语句中每个分支执行的次数。本例中，真分支走了57次，假分支走了54次。之所以会得到这样的数字，是因为我们使用均匀分布生成随机数(也就是说，每个分支有~50\%的概率)。
 
-In the second part of this section, we will learn how to access these values for the sake of developing a more aggressive compiler optimization. Before we do that, though, let's take a deeper look at the profiling data file we just collected.
+本节的第二部分中，我们将了解如何访问这些值，以便开发更积极的编译器优化。但在这样做之前，让我们更深入地了解我们刚刚收集的分析数据文件。
 
-The llvm-profdata tool we just used can not only help us convert the format of the profiling data, but also gives us a quick preview of its content. The following command prints out the summary for pgo\_prof.profdata, including the profiling values that were collected from every function:
+我们刚才使用的\texttt{llvm-profdata}工具，不仅可以帮助我们转换分析数据的格式，而且还可以为我们提供其内容的快速预览。下面的命令可以打印出\texttt{pgo\_prof.profdata}的内容，包括从每个函数中收集的分析值:
 
 \begin{tcblisting}{commandshell={}}
 $ llvm-profdata show –-all-functions –-counts pgo_prof.profdata
 …
-	foo:
-	  Hash: 0x0ae15a44542b0f02
-	  Counters: 2
-	  Block counts: [54, 57]
-	main:
-	  Hash: 0x0209aa3e1d398548
-	  Counters: 2
-	  Block counts: [110, 1]
+  foo:
+    Hash: 0x0ae15a44542b0f02
+    Counters: 2
+    Block counts: [54, 57]
+\end{tcblisting}
+
+\begin{tcblisting}{commandshell={}}
+  main:
+    Hash: 0x0209aa3e1d398548
+    Counters: 2
+    Block counts: [110, 1]
 …
 Instrumentation level: IR entry_first = 0
 Functions shown: 9
@@ -177,9 +180,9 @@ Maximum function count: …
 Maximum internal block count: …
 \end{tcblisting}
 
-Here, we can see the profiling data entries for each function. Each entry has a list of numbers representing the execution frequency of all the enclosing basic blocks.
+这里，我们可以看到每个函数的分析数据条目。每个条目都有一个数字列表，表示所有封闭的基本块的执行频率。
 
-Alternatively, you can inspect the same profiling data file by converting it into a textual file first. Here is the command:
+或者，可以先将相同的分析数据文件转换为文本文件，再来检查它。命令如下:
 
 \begin{tcblisting}{commandshell={}}
 $ llvm-profdata merge –-text pgo_prof.profdata -o pgo_prof.
@@ -199,27 +202,26 @@ foo
 …
 \end{tcblisting}
 
-The *.proftext file is in a human-readable textual format where all the profiling data is simply put in its own line.
+\texttt{*.proftext}文件是一种可读的文本格式，所有的分析数据都简单地放在相应行中。
 
-This textual representation can actually be converted back into the *.profdata format using a similar command. Here is an example:
+这种文本表示实际上可以转换回\texttt{*.profdata}格式使用类似的命令:
 
 \begin{tcblisting}{commandshell={}}
 $ llvm-profdata merge –-binary pgo_prof.proftext -o pgo_prof.profdata
 \end{tcblisting}
 
-Therefore, *.proftext is especially useful when you want to edit the profiling data manually.
+因此，\texttt{*.proftext}对于手动编辑分析数据比较友好。
 
-Before we dive into the APIs for PGO, there is one more concept we need to learn about: the instrumentation level.
+在深入研究PGO的API之前，我们还需要了解一个概念:检测级别。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Understanding the instrumentation level}
+\textbf{检测级别}
 
-So far, we've learned that instrumentation-based PGO can insert instrumentation code for collecting runtime profiling data. On top of this fact, the places where we insert this instrumentation code and its granularity also matter. This property is called the instrumentation level in instrumentation-based PGO. LLVM currently supports three different instrumentation levels. Here are descriptions of each:
+到目前为止，我们已经了解到基于检测的PGO可以插入检测代码来收集运行时的分析数据，插入检测代码的位置，及其粒度也很重要。这个属性在基于工具的PGO中称为\textbf{检测级别}。LLVM目前支持三种不同的检测级别。以下是对它们的描述:
 
 \begin{itemize}
-\item IR: Instrumentation code is inserted based on LLVM IR. For example, the code to collect the number of taken branches is directly inserted before a branch
-instruction. The -fprofile-generate command-line option we introduced earlier will generate profiling data with this instrumentation level. For example, let's say we have the following C code:
+\item \textbf{IR}: 检测代码是基于LLVM IR插入的，例如：收集已获取分支数量的代码直接插入到分支指令之前，\texttt{-fprofile-generate}命令行选项将用这个检测级别生成分析数据。假设我们有以下C代码:
 
 \begin{lstlisting}[style=styleCXX]
 void foo(int x) {
@@ -230,7 +232,7 @@ void foo(int x) {
 }
 \end{lstlisting}
 
-The corresponding IR – without enabling instrumentation-based PGO – is shown here:
+对应的IR——不启用基于检测的PGO——如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 define void @foo(i32 %0) {
@@ -250,13 +252,13 @@ define void @foo(i32 %0) {
 }
 \end{lstlisting}
 
-As we can see, there is a branch to either basic block; that is, \%5 or \%7. Now, let's generate the IR with instrumentation-based PGO enabled with the following command:
+这里有一个基本块的分支：\%5或\%7。现在，让我们使用下面的命令来生成基于检测的PGO的IR:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -fprofile-generate -emit-llvm -S input.c
 \end{tcblisting}
 
-This is the same command we used for the first PGO compilation phase in the Working with profiling data section, except that we are generating LLVM IR instead of an executable. The resulting IR is shown here:
+这与我们在使用分析数据部分中，用于第一个PGO编译阶段的命令相同，只不过我们生成的是LLVM IR，而不是可执行文件。得到的IR如下所示:
 
 \begin{lstlisting}[style=styleCXX]
 define void @foo(i32 %0) {
@@ -281,17 +283,17 @@ define void @foo(i32 %0) {
 }
 \end{lstlisting}
 
-In the preceding IR, the basic blocks in both branches have new code in them. More specifically, both increment the value in a global variable – either @\_\_profc\_foo.0 or @\_\_profc\_foo.1 – by one. The values in these two variables will eventually be exported as the profiling data for branches, representing the number of times each branch was taken.
+上面的IR中，两个分支中的基本块都有新的代码。更具体地说，两者都增加全局变量的值—\texttt{—@\_\_profc\_foo.0}或\texttt{@\_\_profc\_foo.1}。这两个变量中的值最终将导出为分支的分析数据，从而表示每个分支的使用次数。
 
-This instrumentation level provides decent precision but suffers from compiler changes. More specifically, if Clang changes the way it emits LLVM IR, the places where the instrumentation code will be inserted will also be different. This effectively means that for the same input code, the profiling data that's generated with an older version of LLVM might be incompatible with the profiling data that's generated with a newer LLVM.
+这个检测级别提供了相当好的精度，但会受到编译器更改的影响。更具体地说，如果Clang改变了它生成LLVM IR的方式，那么插入检测代码的位置也会不同。这意味着对于相同的输入代码，使用旧版本的LLVM生成的分析数据可能与使用新版本的LLVM生成的分析数据不兼容。
 
-\item AST: Instrumentation code is inserted based on an AST. For example, the code to collect the number of taken branches might be inserted as a new Stmt AST node inside an IfStmt (an AST node). With this method, the instrumentation code is barely affected by compiler changes and we can have a more stable profiling data format across different compiler versions. The downside of this instrumentation level is that it has less precision than the IR instrumentation level.
+\item \textbf{AST}: 检测代码是基于AST插入的，例如：收集已获取分支数量的代码可以作为\texttt{IfStmt}(一个AST节点)中的一个新的texttt{Stmt} AST节点插入。使用此方法，检测代码几乎不受编译器更改的影响，我们可以在不同编译器版本之间拥有更稳定的分析数据格式。这个检测级的缺点是它的精度低于IR检测级。
 
-You can adopt this instrumentation level by simply using the -fprofile-instrgenerate command-line option in place of -fprofile-generate when invoking clang for the first compilation. You don't need to change the command for the second compilation, though.
+第一次编译使用\texttt{clang}时，只需使用\texttt{-fprofile-instrgenerate}命令行选项代替\texttt{-fpro\\file-generate}，就可以采用这种检测级别。但是，在第二次编译时不需要更改命令。
 
-\item Context-sensitive: In the Working with profiling data section, we learned that we could collect information about the number of times a branch has been taken. However, with the IR instrumentation level, it's nearly impossible to tell which caller function leads to the most branch that has been taken the most. In other words, the conventional IR instrumentation level loses the calling context. The contextsensitive instrumentation level tries to address this problem by collecting the profiles again once the functions have been inlined, thus creating profiling data with higher precision.
+\item \textbf{上下文敏感}: 使用分析数据部分中，我们了解到可以收集关于分支执行次数的信息。然而，在IR检测级别上，几乎不可能知道哪个是使用最多的分支。换句话说，传统的IR检测级别失去了调用的上下文。上下文敏感的检测级别，试图通过在函数内联后，再次收集概要文件来解决这个问题，从而获取更高精度的数据。
 
-However, it's slightly cumbersome to use this feature in Clang – we need to compile the same code three times rather than twice. Here are the steps for using contextsensitive PGO:
+然而，在Clang中使用这个特性有点麻烦——我们需要编译相同的代码三次，而不是两次。以下是使用上下文敏感的PGO步骤:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -fprofile-generate=first_prof foo.c -o foo_exe
@@ -299,7 +301,7 @@ $ ./foo_exe …
 $ llvm-profdata merge first_prof -o first_prof.profdata
 \end{tcblisting}
 
-First, generate some normal (IR instrumentation level) profiling data using what we learned in the Working with profiling data section:
+首先，使用我们在“使用分析数据”一节中学到的内容，生成一些普通的(IR检测级)分析数据:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -fprofile-use=first_prof.profdata \
@@ -309,49 +311,49 @@ $ llvm-profdata merge first_prof.profdata second_prof \
           -o combined_prof.profdata
 \end{tcblisting}
 
-Then, run clang with two PGO command-line options, -fprofile-use and -fcs-profile-generate, with the path to the profiling file from the previous step and the prospective output path, respectively. When we use llvm-profdata to do the post-processing, we are merging all the profiling data files we have:
+然后，使用两个PGO命令行选项运行\texttt{clang}，\texttt{-fprofile-use}和\texttt{-fc-profile-generate}，分别带有上一步的配置文件路径和预期的输出路径。当使用\texttt{llvm-profdata}来做后处理时，我们合并了所有的数据文件:
 
 \begin{tcblisting}{commandshell={}}
 $ clang -fprofile-use=combined_prof.profdata \
         foo.c -o optimized_foo
 \end{tcblisting}
 
-Finally, feed the combined profiling file into Clang so that it can use this contextsensitive profiling data to get a more accurate portrait of the program's runtime behavior.
+最后，将组合的分析文件输入到Clang中，这样Clang就可以使用上下文敏感的分析数据来更准确地描述程序的运行时行为。
 
 \end{itemize}
 
-Note that different instrumentation levels only affect the accuracy of the profiling data; they don't affect how we retrieve this data, which we are going to talk about in the next section.
+注意，不同的检测级别只会影响数据的准确性，它们不会影响我们如何检索这些数据，这将在下一节中进行讨论。
 
-In the last part of this section, we are going to learn how to access this profiling data inside an LLVM pass via the APIs provided by LLVM.
+本节的最后一部分，我们将了解如何通过LLVM提供的API访问LLVM Pass中的分析数据。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Learning about the APIs for accessing profiling data}
+\textbf{了解访问分析数据的API}
 
-In the previous section, we learned how to run the instrumentation-based PGO using Clang and view the profiling data file using llvm-profdata. In this section, we are going to learn how to access that data within an LLVM pass to help us develop our
-own PGO.
+前一节中，我们学习了如何使用Clang运行基于检测的PGO，并使用\texttt{llvm-profdata}查看分析数据文件。本节中，我们将了解如何在LLVM Pass中访问数据，以助于开发自己的PGO。
 
-Before we go into the development details, let's learn how to consume those profiling data files into opt, since it's easier to test individual LLVM pass using it. Here is a sample command:
+深入开发细节之前，让我们了解一下如何将这些分析数据文件使用到\texttt{opt}中，因为使用它更容易测试单个LLVM Pass。下面是一个示例命令:
 
 \begin{tcblisting}{commandshell={}}
 $ opt -pgo-test-profile-file=pgo_prof.profdata \
       --passes="pgo-instr-use,my-pass…" pgo.ll …
 \end{tcblisting}
 
-There are two keys in the preceding command:
+上面的命令中有两个关键:
 
 \begin{itemize}
-\item Use -pgo-test-profile-file to designate the profiling data file you want to put in.
-\item The "pgo-instr-use" string represents the PGOInstrumentaitonUse pass, which reads (instrumentation-based) profiling files and annotates the data on an LLVM IR. However, it is not run by default, even in the predefined optimization levels (that is, O0 ~ O3, Os, and Oz). Without this pass being ahead in the Pass pipeline, we are unable to access any profiling data. Therefore, we need to explicitly add it to the optimization pipeline. The preceding sample command demonstrated how to run it before a custom LLVM pass, my-pass, in the pipeline. If you want to run it before any of the predefined optimization pipelines – for instance, O1 – you must specify the -\,-passes="pgo-instr-use,default<O1>" command-line option.
+\item 使用\texttt{-pgo-test-profile-file}指定要写入的分析数据文件。
+
+\item "pgo-in-use"字符串表示\texttt{PGOInstrumentaitonUse} Pass，它读取(基于检测的)数据文件，并在LLVM IR上注释数据。但是，即使在预定义的优化级别(即O0 ~ O3、Os和Oz)中，也不会默认运行。如果Pass不在pass流水的前部，我们就无法访问任何分析数据。因此，我们需要显式地将其添加到优化流水中。前面的示例命令演示了如何在管道中运行自定义LLVM Pass(\texttt{my-pass})之前运行。如果想在任何预定义的优化流水(例如O1)之前运行，必须指定\texttt{-\,-passes="pgo-inst -use,default<O1>"}命令行选项。
 \end{itemize}
 
-Now, you might be wondering, what happens after the profiling data is read into opt? It turns out that the LLVM IR file that was generated by the second compilation phase – pgo.after.ll – has provided us with some answers to this question. 
+现在，在将分析数据读入\texttt{opt}之后会发生什么？由第二个编译阶段(\texttt{pgo.after.ll})生成的LLVM IR文件，会为我们提供了这个问题的答案。
 
-In pgo.after.ll, we saw that some branches were decorated with metadata specifying the number of times they were taken. Similar metadata appeared in functions, which represented the total number of times those functions were called.
+在\texttt{pgo.after.ll}中，我们看到一些分支使用元数据装饰，这些元数据获取它们的次数。类似的元数据出现在函数中，表示这些函数调用的总次数。
 
-More generally speaking, LLVM directly combines the profiling data – read from the file – with its associated IR constructions via metadata. The biggest advantage of this strategy is that we don't need to carry the raw profiling data throughout the entire optimization pipeline – the IR itself contains this profiling information.
+更一般地说，LLVM通过元数据直接将数据(从文件中读取)与相关的IR结构结合在一起。这种策略的最大优点是，不需要在整个优化过程中携带原始分析数据——IR本身包含了这个分析信息。
 
-Now, the question becomes, how can we access metadata that's been attached to IR? LLVM's metadata can be attached to many kinds of IR units. Let's take a look at the most common one first: accessing metadata attached to an Instruction. The following code shows us how to read the profiling metadata –!prof !71, which we saw previously – that's attached to a branch instruction:
+现在的问题是，我们如何访问附加到IR的元数据？LLVM的元数据可以附加到多种IR单元上。让我们先来看看最常见的一个:访问附加到指令的元数据。下面的代码向我们展示了如何读取分析元数据——\texttt{!prof !71}，它附加到一个分支指令上:
 
 \begin{lstlisting}[style=styleCXX]
 // `BB` has the type of `BasicBlock&`
@@ -360,11 +362,11 @@ MDNode *BrWeightMD = BranchInst->getMetadata(LLVMContext::MD_
 prof);
 \end{lstlisting}
 
-In the preceding snippet, we are using BasicBlock::getTerminator to get the last instruction in a basic block, which is a branch instruction most of the time. Then, we tried to retrieve the profiling metadata with the MD\_prof metadata. BrWeightMD is the result we are looking for.
+上面的代码段中，我们使用\texttt{BasicBlock::getTerminator}来获取基本块中的最后一条指令，这在大多数情况下是一条分支指令。然后，我们尝试使用\texttt{MD\_prof}元数据检索分析元数据。\texttt{BrWeightMD}是我们正在寻找的结果。
  
-The type of BrWeightMD, MDNode, represents a single metadata node. Different MDNode instances can be composed together. More specifically, a MDNode instance can use other MDNode instances as its operands – similar to the Value and User instances we saw in Chapter 10, Processing LLVM IR. The compound MDNode can express more complex concepts.
+\texttt{BrWeightMD}的类型\texttt{MDNode}表示单个元数据节点。不同的\texttt{MDNode}实例可以组合在一起。一个\texttt{MDNode}实例可以使用其他\texttt{MDNode}实例作为它的操作数——类似于在第10章中的实例。复合\texttt{MDNode}可以表达更复杂的概念。
 
-For example, in this case, each operand in BrWeightMD represents the number of times each branch was taken. Here is the code to access them:
+在本例中，\texttt{BrWeightMD}中的每个操作数表示获取每个分支的次数。下面是访问代码:
 
 \begin{lstlisting}[style=styleCXX]
 if (BrWeightMD->getNumOperands() > 2) {
@@ -375,13 +377,13 @@ if (BrWeightMD->getNumOperands() > 2) {
 }
 \end{lstlisting}
 
-As you can see, the taken counts are also expressed as MDNode.
+计数也表示为\texttt{MDNode}。
 
-\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=Operand indices for both branches]	
-\hspace*{0.7cm}Note that the data for both branches is placed at the operands starting from index 1 rather than index 0.
+\begin{tcolorbox}[colback=blue!5!white,colframe=blue!75!black, fonttitle=\bfseries,title=两个分支的操作数索引]	
+\hspace*{0.7cm}注意，两个分支的数据都从索引1开始的操作数上，而不是索引0。
 \end{tcolorbox}
 
-If we want to convert these branch MDNode instances into constants, we can leverage a small utility provided by the mdconst namespace. Here is an example:
+如果希望将这些分支\texttt{MDNode}实例转换为常量，可以利用\texttt{mdconst}名称空间提供的一个小工具。下面是一个例子:
 
 \begin{lstlisting}[style=styleCXX]
 if (BrWeightMD->getNumOperands() > 2) {
@@ -393,9 +395,9 @@ if (BrWeightMD->getNumOperands() > 2) {
 }
 \end{lstlisting}
 
-The previous code unwrapped an MDNode instance and extracted the underlying ConstantInt instance.
+前面的代码解包装了一个\texttt{MDNode}实例并提取了底层的\texttt{ConstantInt}实例。
 
-For Function, we can get the number of times it was called in an even easier way. Here is the code:
+对于\texttt{Function}，可以用更简单的方法得到调用的次数:
 
 \begin{lstlisting}[style=styleCXX]
 // `F` has the type of `Function&`
@@ -403,17 +405,17 @@ Function::ProfileCount EntryCount = F.getEntryCount();
 uint64_t EntryCountVal = EntryCount.getCount();
 \end{lstlisting}
 
-Function is using a slightly different way to present its called frequency. But retrieving the numerical profiling value is still pretty easy, as shown in the preceding snippet.
+\texttt{Function}使用一种略有不同的方式来表示其调用的频率。但是检索数值分析值仍然非常容易，如上的代码所示。
 
-It is worth noting that although we only focused on instrumentation-based PGO here, for sampling-based PGO, LLVM also uses the same programming interface to expose its data. In other words, even if you're using profiling data that's been collected from sampling tools with a different opt command, the profiling data will also be annotated on IR units and you can still access it using the aforementioned method. In fact, the tools and APIs we are going to introduce in the rest of this section are mostly profiling-data-source agnostic.
+值得注意的是，虽然这里只关注基于检测的PGO，但对于基于采样的PGO, LLVM也使用相同的编程接口来公开其数据。换句话说，即使正在使用从使用不同的\texttt{opt}命令的采样工具收集的分析数据，分析数据也将标注在IR单元上，仍然可以使用上述方法访问。实际上，在本节的其余部分中，我们将介绍的工具和API，大多与分析数据源无关。
 
-So far, we have been dealing with real values that have been retrieved from the profiling data. However, these low-level values cannot help us go far in terms of developing a compiler optimization or program analysis algorithm – usually, we are more interested in high-level concepts such as "functions that are executed most frequently" or "branches that are least taken". To address these demands, LLVM builds several analyses on top of profiling data to deliver such high-level, structural information.
+目前为止，我们一直在处理从分析数据中检索到的实际值。然而，在开发编译器优化或程序分析算法方面，这些低层值不能帮助我们走得太远——通常，我们更感兴趣的是高级概念，如“最频繁执行的函数”或“最少执行的分支”。为了满足这些需求，LLVM在分析数据的基础上构建了几个分析，以提供这种高级的结构化信息。
 
-In the next section, we are going to introduce some of these analyses and their usages in LLVM Pass.
+下一节中，我们将介绍其中的一些分析，以及在LLVM Pass中的用法。
 
-\subsubsubsection{12.3.3\hspace{0.2cm}Using profiling data analyses}
+\subsubsubsection{12.3.3\hspace{0.2cm}使用性能数据进行分析}
 
-In this section, we are going to learn three analysis classes that can help us reason about the execution frequency of basic blocks and functions at runtime. They are as follows:
+在本节中，我们将学习三个分析类，它们可以帮助我们推断基本块和函数在运行时的执行频率。具体如下:
 
 \begin{itemize}
 \ttfamily
@@ -422,13 +424,13 @@ In this section, we are going to learn three analysis classes that can help us r
 \item ProfileSummaryInfo
 \end{itemize}
 
-This list is ordered by their analyzing scope in the IR – from local to global. Let's start with the first two.
+这个列表是按照它们在IR中的分析范围排序的——从本地到全局。让我们从前两个开始。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Using BranchProbabilityInfo and BlockFrequencyInfo}
+\textbf{使用BranchProbabilityInfo和BlockFrequencyInfo}
 
-In the previous section, we learned how to access the profiling metadata that's attached to each branch instruction – the branch weight. The analysis framework in LLVM provides you with an even easier way to access these values via the BranchProbabilityInfo class. Here is some example code showing how to use it in a (function) Pass:
+在前一节中，我们了解了如何访问附加到每个分支指令的分析元数据——\textbf{分支权重}。LLVM中的分析框架通过\texttt{BranchProbabilityInfo}类提供了一种更简单的方法来访问这些值。下面是一些示例代码，展示了如何在(函数)Pass中使用它:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/Analysis/BranchProbabilityInfo.h"
@@ -442,27 +444,28 @@ PreservedAnalyses run(Function &F, FunctionAnalysisManager
 }
 \end{lstlisting}
 
-The previous code retrieved a BranchProbabilityInfo instance, which is the result of BranchProbabilityAnalysis, and tried to get the weight from the entry block to its first successor block.
+前面的代码检索了\texttt{BranchProbabilityInfo}的实例，是\texttt{BranchProbabilityAnalysis}的结果，并试图从入口块获取到其第一个后续块的权重。
 
-The returned value, a BranchProbability instance, gives you the branch's probability in the form of a percentage. You can use BranchProbability::getNumerator to retrieve the value (the "denominator" is 100 by default). The BranchProbability class also provides some handy utility methods for performing arithmetic between two branch probabilities or scaling the probability by a specific factor. Although we can easily tell which branch is more likely to be taken using BranchProbabilityInfo, without additional data, we can't tell the branch's probability (to be taken) in the whole function. For example, let's assume we have the following CFG:
+返回值是一个\texttt{BranchProbability}实例，它以百分比的形式给出了分支的概率。可以使用\texttt{BranchProbability::getNumerator}检索值(“分母”默认为100)。\texttt{BranchProbability}类还提供了一些方便的实用方法，用于在两个分支概率之间执行算术，或按特定因子缩放概率。尽管使用\texttt{BranchProbabilityInfo}可以很容易地知道哪个分支更有可能走到，但是没有额外的数据，我们不能在整个函数中告诉执行分支的概率，例如：假设我们有以下CFG:
 
 \hspace*{\fill} \\ %插入空行
 \begin{center}
 \includegraphics[width=0.3\textwidth]{content/3/chapter12/images/6.png}\\
-Figure 12.6 – CFG with nested branches
+图12.6 - CFG嵌套分支
 \end{center}
 
-For the preceding diagram, we have profiling counter values for the following basic blocks:
+对于上图，我们有以下基本块的分析计数器值:
 
 \begin{itemize}
-\item if.then4: 2
-\item if.else: 10
-\item if.else7: 20
+\ttfamily
+\item \textbf{if.then4}: 2
+\item \textbf{if.else}: 10
+\item \textbf{if.else7}: 20
 \end{itemize}
 
-If we only look at the branch weight metadata toward blocks if.then4 and if.else – that is, the true and false branches for if.then, respectively – we might come under the illusion that the if.else block has a ~83\% chance of being taken. But the truth is, it only has a ~31\% chance because the control flow has a higher probability to go into if.else7 before even entering the if.then region. Of course, in this case, we can do simple math to figure out the correct answer, but when the CFG is getting bigger and more complex, we might have a hard time doing this by ourselves.
+如果我们只看分支权重元数据块\texttt{if.then4}和\texttt{if.else}——即\texttt{if.then}的真和假分支。然后，我们可能会产生一种错觉，\texttt{if.else}块有~83\%的几率。但事实是，只有~31\%的概率，因为控制流进入在进入\texttt{if.then}之前，\texttt{if.else7}的概率更高。在这种情况下，我们可以通过计算来得出正确的答案，但当CFG变得更大更复杂时，我们就很难自己做判断了。
 
-The BlockFrequencyInfo class provides a shortcut to this problem. It can tell us the frequency of each basic block to be taken under the context of its enclosing function. Here is an example of its usage in a Pass:
+\texttt{BlockFrequencyInfo}类提供了解决这个问题的捷径。它可以告诉我们每个基本块在其封闭函数的上下文中执行的频率。下面是它在Pass中的用法:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/Analysis/BlockFrequencyInfo.h"
@@ -477,9 +480,9 @@ PreservedAnalyses run(Function &F, FunctionAnalysisManager
 }
 \end{lstlisting}
 
-The previous code retrieved a BlockFrequencyInfo instance, which is the result of BlockFrequencyAnalysis, and tried to evaluate the block frequency of each basic block in the function.
+前面的代码检索了\texttt{BlockFrequencyInfo}实例，是\texttt{BlockFrequencyAnalysis}的结果，并尝试计算函数中每个基本块的块频率。
 
-Similar to the BranchProbability class, BlockFrequency also provides nice utility methods to calculate with other BlockFrequency instances. But different from BranchProbability, the numeric value that's retrieved from BlockFrequency is not presented as a percentage. More specifically, BlockFrequency::getFrequency returns an integer that is the frequency relative to the entry block of the current function. In other words, to get a percentage-based frequency, we can use the following snippet:
+类似于\texttt{BranchProbability}类，\texttt{BlockFrequency}也提供了方法来计算其他\texttt{BlockFrequency}实例。但与\texttt{BranchProbability}不同，从\texttt{BlockFrequency}检索到的数值不是以百分比表示的。\texttt{BlockFrequency::getFrequency}返回一个整数，是相对于当前函数的入口块的频率。要获得基于百分比的频率，可以使用下面的代码:
 
 \begin{lstlisting}[style=styleCXX]
 // `BB` has the type of `BasicBlock*`
@@ -491,15 +494,15 @@ auto FreqInPercent
   = (BBFreq.getFrequency() / EntryFreq.getFrequency()) * 100;
 \end{lstlisting}
 
-The highlighted FreqInPercent is the block frequency of BB, expressed as a percentage.
+\texttt{FreqInPercent}表示\texttt{BB}的阻塞频率，以百分比表示。
 
-BlockFrequencyInfo calculates the frequency of a specific basic block under the context of a function – but what about the entire module? More specifically, if we bring a call graph into this situation, can we multiply the block frequency we just learned with the frequency of the enclosing function being called, in order to get the execution frequency in the global scope? Fortunately, LLVM has prepared a useful class to answer this question – ProfileSummaryInfo.
+\texttt{BlockFrequencyInfo}在函数的上下文中计算特定基本块的频率——但是整个模块呢？如果在这种情况下引入调用图，是否可以将我们刚刚学过的块频率与调用函数的频率相乘，以得到全局范围内的执行频率？幸运的是，LLVM已经准备了一个有用的类来解决这个问题——\texttt{ProfileSummaryInfo}。
 
 \hspace*{\fill} \\ %插入空行
 \noindent
-\textbf{Using ProfileSummaryInfo}
+\textbf{使用ProfileSummaryInfo}
 
-The ProfileSummaryInfo class gives you a global view of all the profiling data in a Module. Here is an example of retrieving an instance of it inside a module Pass:
+\texttt{ProfileSummaryInfo}类提供了一个模块中所有分析数据的全局视图。下面是一个在模块中检索实例的例子:
 
 \begin{lstlisting}[style=styleCXX]
 #include "llvm/Analysis/ProfileSummaryInfo.h"
@@ -510,21 +513,21 @@ PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
 }
 \end{lstlisting}
 
-ProfileSummaryInfo provides a wide variety of functionalities. Let's take a look at three of its most interesting methods:
+\texttt{ProfileSummaryInfo}提供了各种各样的功能。让我们来看看它最有意思的三个方法:
 
 \begin{itemize}
-\item isFunctionEntryCold/Hot(Function*): These two methods compare the entry count of a Function – which effectively reflects the number of times a function was called –against that of other functions in the same module and tell us if the inquiry function is ranking high or low in this metric.
+\item \texttt{isFunctionEntryCold/Hot(Function*)}: 这两种方法将\texttt{Function}的输入计数(有效地反映了函数被调用的次数)与同一模块中其他函数的输入计数进行比较，并告诉我们查询函数在这个指标中的排名是高还是低。
 
-\item isHot/ColdBlock(BasicBlock*, BlockFrequencyInfo\&): These two methods work similarly to the previous bullet one but compare the execution frequency of a BasicBlock against all the other blocks in the module.
+\item \texttt{isHot/ColdBlock(BasicBlock*, BlockFrequencyInfo\&)}: 这两个方法的工作方式与前面的项目一相似，但比较的是\texttt{BasicBlock}与模块中所有其他块的执行频率.
 
-\item isFunctionCold/HotInCallGraph(Function*,
-BlockFrequencyInfo\&): These two methods combine the methods from the previous two bullet points they can tell you whether a function is considered hot or cold based on its entry count or the execution frequency of its enclosing basic blocks. This is useful when a function has a low entry count – that is, it was not called often – but contains a loop that has extremely a high basic block execution frequency. In this case, the isFunctionHotInCallGraph method can give us a more accurate assessment.
+\item \texttt{isFunctionCold/HotInCallGraph(Function*,
+BlockFrequencyInfo\&)}: 这两个方法结合了前面两个要点的方法，可以根据函数的入口计数，或其封闭基本块的执行频率来判断函数是“热”的，还是“冷”的。当一个函数有一个很低的输入计数(也就是说，它不经常被调用)，但是包含一个具有极高的基本块执行频率的循环时，这是很有用的。在本例中，\texttt{isFunctionHotInCallGraph}方法可以给我们一个更准确的评估。
 
 \end{itemize}
 
-These APIs also have variants where you can designate the cutoff point as being "hot" or "cold." Please refer to the API documentation for more information.
+这些API还有变体，可以自定义“热”与“冷”的分界点。有关更多信息，请参阅API文档。
 
-For a long time, the compiler was only able to analyze and optimize the source code with a static view. For dynamic factors inside a program – for instance, the branch taken count – compilers could only make an approximation. PGO opened an alternative path to provide extra information for compilers to peek into the target program's runtime behavior, for the sake of making less ambiguous and more aggressive decisions. In this section, we learned how to collect and use runtime profiling information – the key to PGO – with LLVM. We learned how to use the related infrastructure in LLVM to collect and generate such profiling data. We also learned about the programming interface we can use to access that data – as well as some high-level analyses built on top of it – to assist our development inside an LLVM Pass. With these abilities, LLVM developers can plug in this runtime information to further improve the quality and precision of their existing optimization Passes.
+很长一段时间，编译器只能用静态视图分析和优化源代码。对于程序内部的动态因素——例如，有计数的分支——编译器只能做出一个近似值。PGO打开了格局，为编译器提供额外的信息，以查看目标程序的运行时行为，以便做出更明确和更积极的决策。本节中，我们了解了如何使用LLVM收集和使用运行时概要信息(PGO的关键)。我们了解了如何在LLVM中使用相关的工具来收集和生成这样的概要数据。我们还了解了我们用来访问数据的编程接口——以及在此基础上构建的一些高级分析——以帮助我们在LLVM Pass中进行开发。有了这些功能，LLVM开发人员就可以插入这些运行时信息，进一步提高现有优化过程的质量和精度。
 
 
 

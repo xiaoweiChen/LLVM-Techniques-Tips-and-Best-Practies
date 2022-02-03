@@ -1,21 +1,21 @@
-In this chapter, we are going to work with multiple subprojects. One of them – Compiler-RT – needs to be included in your build by us modifying the CMake configuration. Please open the CMakeCache.txt file in your build folder and add the compiler-rt string to the value of the LLVM\_ENABLE\_PROJECTS variable. Here is an example:
+本章中，将使用多个子项目。其中之一——Compiler-RT——需要通过修改CMake配置来包含在你的构建中。请打开\texttt{CMakeCache.tx}t文件，并将\texttt{compiler-rt}字符串添加到\texttt{LLVM\_ENABLE\_PROJECTS}变量中。下面是一个例子:
 
 \begin{lstlisting}[style=styleCMake]
 //Semicolon-separated list of projects to build…
 LLVM_ENABLE_PROJECTS:STRING="clang;compiler-rt"
 \end{lstlisting}
 
-After editing the file, launch a build with any build target. CMake will try to reconfigure itself.
+编辑该文件后，用任何构建目标重新启动构建，CMake会重新配置。
 
-Once everything has been set up, we can build the components we need for this chapter.Here is an example command:
+当一切就绪，就可以构建本章所需的组件了。下面是一个命令示例:
 
 \begin{tcblisting}{commandshell={}}
 $ ninja clang compiler-rt opt llvm-profdata
 \end{tcblisting}
 
-This will build the clang tool we're all familiar with and a collection of Compiler-RT libraries, which we are going to introduce shortly.
+这将构建我们都熟悉的\texttt{clang}工具和一系列Compiler-RT库。
 
-You can find the sample code for this chapter in the same GitHub repository: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clang-and-Middle-End-Libraries/tree/main/Chapter12}.
+可以在GitHub库中找到本章的示例代码: \url{https://github.com/PacktPublishing/LLVM-Techniques-Tips-and-Best-Practices-Clang-and-Middle-End-Libraries/tree/main/Chapter12}.
 
 
 
